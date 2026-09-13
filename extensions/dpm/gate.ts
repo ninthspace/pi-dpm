@@ -68,49 +68,56 @@ export type GateAnswer = { readonly header: string; readonly question: string; r
 /** The two dialog methods the gate uses, so a test can hand it a recorder instead of a terminal. */
 export type Dialogs = Pick<ExtensionUIContext, 'select' | 'input'>;
 
-/** What the model is told when a gate is blocked for having nothing above it. */
-export const UNRENDERED = `${GATE}: nothing was rendered since the last gate. Write what is being decided in your reply text, `
-  + `not in reasoning, then call ${GATE} again.`;
+/** What the model is told when a gate is blocked for having no text in its own message. */
+export const UNRENDERED = `${GATE}: the message calling ${GATE} has no text, so the user would be asked to decide `
+  + 'something they cannot see. Write what is being decided in the reply text of the message that calls '
+  + `${GATE} — not in reasoning, and not only in an earlier message — then call ${GATE} again.`;
 
 /** A session entry, as far as the guard reads one. */
 type BranchEntry = {
   readonly type: string;
-  readonly message?: { readonly role: string; readonly content?: unknown; readonly toolName?: string; readonly isError?: boolean };
+  readonly message?: { readonly role: string; readonly content?: unknown };
 };
 
 /**
- * The assistant text shown since the last answered gate, the user's last message or a compaction,
- * whichever is latest.
+ * The text of the assistant message calling the gate: the latest assistant message on the branch.
  *
- * **A failed `question` call does not close the window.** A gate refused by its schema, or blocked
- * here, was never answered, so the render before it still stands above the retry. A render a few
- * tool calls back counts too, because skills often render, record, and then gate.
+ * **The render has to be in the calling message, not merely somewhere since the last gate.** This
+ * read back to the last answered gate, so that a skill could render, record, then gate. The fourth
+ * MTPLX run showed what that let through: "All eight FRs are recorded. On to Section 3." in one
+ * message, then a gate whose message held the NFR draft in reasoning and no text at all. The earlier
+ * line satisfied the guard, and the user was asked to approve NFRs nobody showed them.
+ *
+ * **Nothing good was blocked by the stricter rule in the runs there are.** Across three MTPLX runs,
+ * all 38 gates whose render the user saw had it in the calling message. All three that had text only
+ * in an earlier message had their draft in that message's reasoning.
+ *
+ * Anything after the calling message is not the caller, so a user message or tool result reached
+ * first means there is no calling message to read.
  *
  * @param branch The session branch, root first, as `sessionManager.getBranch()` returns it.
  * @returns {string}
  */
-export function renderedSinceLastGate(branch: readonly BranchEntry[]): string {
-  const texts: string[] = [];
-
+export function renderedWithGate(branch: readonly BranchEntry[]): string {
   for (let i = branch.length - 1; i >= 0; i -= 1) {
     const entry = branch[i]!;
 
-    if (entry.type === 'compaction') break;
+    if (entry.type === 'compaction') return '';
 
     const message = entry.type === 'message' ? entry.message : undefined;
 
     if (message === undefined) continue;
-    if (message.role === 'user') break;
-    if (message.role === 'toolResult' && message.toolName === GATE && !message.isError) break;
+    if (message.role !== 'assistant') return '';
 
-    if (message.role === 'assistant' && Array.isArray(message.content)) {
-      texts.unshift(...(message.content as { type?: string; text?: string }[])
+    return Array.isArray(message.content)
+      ? (message.content as { type?: string; text?: string }[])
         .filter((block) => block.type === 'text' && block.text?.trim())
-        .map((block) => block.text!.trim()));
-    }
+        .map((block) => block.text!.trim())
+        .join('\n')
+      : '';
   }
 
-  return texts.join('\n');
+  return '';
 }
 
 /** The parameters, as plain JSON Schema — pi validates it the same way it validates dpm's own tools. */
@@ -266,11 +273,11 @@ const block = (theme: Theme, rows: ReadonlyArray<readonly [Colour, string]>): Co
  * @param pi
  */
 export function registerGate(pi: ExtensionAPI): void {
-  // Blocked before any dialog opens, so a gate with nothing above it never reaches the user. pi
-  // brings the session up to date through the calling message before this runs.
+  // Blocked before any dialog opens, so a gate with no text in its own message never reaches the
+  // user. pi brings the session up to date through the calling message before this runs.
   pi.on('tool_call', (event, ctx) => {
     if (event.toolName !== GATE) return undefined;
-    if (renderedSinceLastGate(ctx.sessionManager.getBranch() as unknown as readonly BranchEntry[]) !== '') return undefined;
+    if (renderedWithGate(ctx.sessionManager.getBranch() as unknown as readonly BranchEntry[]) !== '') return undefined;
 
     return { block: true, reason: UNRENDERED };
   });

@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
-  answerText, ask, choiceFor, DONE, GATE, HEADER_LIMIT, OWN_ANSWER, PARAMETERS, registerGate, renderedSinceLastGate,
+  answerText, ask, choiceFor, DONE, GATE, HEADER_LIMIT, OWN_ANSWER, PARAMETERS, registerGate, renderedWithGate,
   UNRENDERED, wrap,
 } from '../extensions/dpm/gate.ts';
 import {
@@ -154,28 +154,31 @@ test('the transcript row shows each question and every option, within the width 
   assert.deepEqual(result, ['✓ Requirements: Approve (Recommended)']);
 });
 
-test('the render window runs back to the last answered gate, and a refused gate does not close it', () => {
-  const said = (text) => ({
+test('the render is read from the message calling the gate, and text in an earlier message does not count', () => {
+  const said = (text, call = GATE) => ({
     type: 'message',
     message: {
       role: 'assistant',
-      content: [{ type: 'thinking', thinking: 'drafted here' }, ...(text ? [{ type: 'text', text }] : []), { type: 'toolCall', name: GATE }],
+      content: [{ type: 'thinking', thinking: 'drafted here' }, ...(text ? [{ type: 'text', text }] : []), { type: 'toolCall', name: call }],
     },
   });
-  const result = (toolName, isError) => ({ type: 'message', message: { role: 'toolResult', toolName, isError, content: [] } });
+  const result = (toolName) => ({ type: 'message', message: { role: 'toolResult', toolName, isError: false, content: [] } });
   const user = { type: 'message', message: { role: 'user', content: 'go' } };
 
-  // Gate 7 of the first MTPLX run: the draft in reasoning, nothing in text since the last answer.
-  assert.equal(renderedSinceLastGate([user, said('Draft A'), result(GATE, false), said('')]), '');
-  // A render a few tool calls back still stands above its gate.
-  assert.equal(renderedSinceLastGate([user, said('Draft B'), result('dpm_create_adr', false), said('')]), 'Draft B');
-  // A refused gate is not an answered one.
-  assert.equal(renderedSinceLastGate([user, said('Draft C'), result(GATE, true), said('')]), 'Draft C');
-  // The user's message and a compaction each start a new window.
-  assert.equal(renderedSinceLastGate([said('old'), user, said('')]), '');
-  assert.equal(renderedSinceLastGate([said('old'), { type: 'compaction' }, said('')]), '');
+  // Gate 3 of the fourth MTPLX run: a transition line in one message, the draft in the gate's reasoning.
+  assert.equal(renderedWithGate([
+    user, said('All eight FRs are recorded. On to Section 3.', 'dpm_update_session'), result('dpm_update_session'), said(''),
+  ]), '');
+  // Gate 7 of the first: the same, with the earlier text an answered gate's draft.
+  assert.equal(renderedWithGate([user, said('Draft A'), result(GATE), said('')]), '');
+  // The calling message's own text is the render.
+  assert.equal(renderedWithGate([user, said('Draft B'), result(GATE), said('Draft C')]), 'Draft C');
   // Entries that are not messages are passed over, and whitespace is not a render.
-  assert.equal(renderedSinceLastGate([user, said('Draft D'), { type: 'custom_message' }, said('   ')]), 'Draft D');
+  assert.equal(renderedWithGate([user, said('Draft D'), { type: 'custom_message' }]), 'Draft D');
+  assert.equal(renderedWithGate([user, said('   ')]), '');
+  // With no assistant message after the user's or a compaction, there is no caller to read.
+  assert.equal(renderedWithGate([said('old'), user]), '');
+  assert.equal(renderedWithGate([said('old'), { type: 'compaction' }]), '');
 });
 
 test('wrap keeps every line within the width, cutting a word that cannot fit', () => {
@@ -234,6 +237,25 @@ test('through pi, a gate with nothing rendered above it is blocked before any di
   const returned = model.requests[1].messages.filter((entry) => entry.role === 'tool');
 
   assert.ok(textOf(returned[0].content).includes(UNRENDERED), 'the model was not told why its gate was refused');
+});
+
+test('through pi, text in an earlier message does not carry to a gate whose own message has none [integration]', limitFor(), async (t) => {
+  const model = await scriptedModel(t, [
+    callsTool('dpm_list_spec', {}, 'All eight FRs are recorded. On to Section 3.'),
+    callsTool(GATE, { questions: [APPROVE] }),
+    callsTool(GATE, { questions: [APPROVE] }, RENDER),
+    answers('done'),
+  ]);
+  const scratch = scratchProject(t, model.baseUrl);
+
+  const { messages, dialogs } = await runPrompt(scratch, 'Gate it.', { answer: (request) => ({ value: request.options[0] }) });
+  const [listed, blocked, asked] = toolResults(messages);
+
+  assert.equal(listed.isError, false, textOf(listed.content));
+  assert.equal(blocked.isError, true, `a gate with only earlier text was let through: ${textOf(blocked.content)}`);
+  assert.ok(textOf(blocked.content).includes(UNRENDERED), `the block did not say why: ${textOf(blocked.content)}`);
+  assert.equal(asked.isError, false, `the rendered retry failed: ${textOf(asked.content)}`);
+  assert.equal(dialogs.length, 1, 'the gate with no text of its own reached the user');
 });
 
 test('through pi, a dismissed gate is an error rather than an answer [integration]', limitFor(), async (t) => {

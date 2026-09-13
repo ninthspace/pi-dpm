@@ -120,7 +120,8 @@ labels, and long content is truncated there.
 
 1. **Render** what is being decided in the message body — documents, drafts, alternatives, tables,
    lists of proposed changes. If what the user needs to read runs past a sentence or two, it
-   belongs here.
+   belongs here. It belongs in the same message as the call in step 2: not in reasoning, which the
+   user does not see, and not only in an earlier message, which is no longer the one being answered.
 2. **Then call `question`**, carrying only the decision — "Approve" / "Request changes" / "Stop",
    or "Choose A / B / C".
 
@@ -135,8 +136,8 @@ gate, because a clause is what a run under pressure skips.
 **A gate that is only a selection still gets a sentence.** Offering the specs in the project, or
 asking whether to sweep evenly or focus, puts every choice in the `options` already; there is no
 separate artefact, and a message body repeating the option labels is noise. So the render shrinks to
-one line of framing — what is being chosen, and why now — rather than disappearing. A gate with
-nothing at all above it is refused by the host, whichever kind it is.
+one line of framing — what is being chosen, and why now — rather than disappearing. A gate whose own
+message has no text is refused by the host, whichever kind it is.
 
 **The shape it takes, because getting it wrong costs a round trip each time.** `questions` is an
 array, and each entry requires `question` (the whole question), `header` (a very short label, 30
