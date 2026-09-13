@@ -86,10 +86,10 @@ const topLevel = (files) => [...new Set(files.map((path) => path.split('/')[0]))
 
 // --- The manifest can publish at all ----------------------------------------------------------
 
-test('the manifest declares opencode-dpm at 0.1.0 and nothing marks it private [unit]', () => {
+test('the manifest declares pi-dpm at 0.1.0 and nothing marks it private [unit]', () => {
   const manifest = packageManifest();
 
-  assert.equal(manifest.name, 'opencode-dpm');
+  assert.equal(manifest.name, 'pi-dpm');
   assert.equal(manifest.version, '0.1.0', 'the story ships 0.1.0');
 
   // **`private` is not a field to get right — it is a field that must not be there.** It arrived
@@ -100,7 +100,7 @@ test('the manifest declares opencode-dpm at 0.1.0 and nothing marks it private [
 
   // The install the README documents is a GitHub specifier, so the manifest naming that repository
   // is the one place the package itself says where it came from.
-  assert.match(manifest.repository?.url ?? '', /github\.com\/[\w.-]+\/opencode-dpm/,
+  assert.match(manifest.repository?.url ?? '', /github\.com\/[\w.-]+\/pi-dpm/,
     'the manifest names no repository, so the package does not say where it came from');
 });
 

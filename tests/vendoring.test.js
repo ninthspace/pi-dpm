@@ -116,7 +116,7 @@ test('the repository holds the v0.7.0 tree it was forked from [integration]', ()
 test('the manifest names this package and this floor [unit]', () => {
   const manifest = packageManifest();
 
-  assert.equal(manifest.name, 'opencode-dpm', 'the fork has its own name');
+  assert.equal(manifest.name, 'pi-dpm', 'the fork has its own name');
   assert.equal(manifest.engines.node, '>=24.0.0');
 
   // The one place the number itself is written down. Every other assertion in the suite compares

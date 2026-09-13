@@ -154,7 +154,7 @@ const fingerprint = (directory) => Object.fromEntries(readdirSync(directory).sor
 test('must NOT — the plugin writes to the user\'s OpenCode configuration [integration]', async () => {
   const configured = mkdtempSync(join(tmpdir(), 'dpm-v1-config-'));
 
-  writeFileSync(join(configured, 'opencode.json'), JSON.stringify({ plugin: ['opencode-dpm'] }));
+  writeFileSync(join(configured, 'opencode.json'), JSON.stringify({ plugin: ['pi-dpm'] }));
   writeFileSync(join(configured, 'opencode.jsonc'), '{ "mcp": {} }');
 
   const before = fingerprint(configured);

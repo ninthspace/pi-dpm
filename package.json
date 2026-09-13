@@ -1,5 +1,5 @@
 {
-  "name": "opencode-dpm",
+  "name": "pi-dpm",
   "version": "0.1.0",
   "type": "module",
   "description": "Data-Modelled Planning Method for OpenCode v2 — SQLite-backed persistence for planning artefacts.",
@@ -7,7 +7,7 @@
   "author": "Chris Aves",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ninthspace/opencode-dpm.git"
+    "url": "git+https://github.com/ninthspace/pi-dpm.git"
   },
   "keywords": [
     "opencode",

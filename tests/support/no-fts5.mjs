@@ -20,7 +20,7 @@ import { registerHooks } from 'node:module';
  * **Both moved in the port, and the pair is why this is written out rather than inlined.** The file
  * became `capability.ts`, and the path it used to be matched by — `/dpm/src/db/capability.js` —
  * assumed the plugin sat in a directory called `dpm` inside the marketplace repository. The
- * standalone fork's root is `opencode-dpm`, so `/dpm/…` no longer matches it and never would again.
+ * standalone fork's root is `pi-dpm`, so `/dpm/…` no longer matches it and never would again.
  *
  * **The failure that combination produced is the one worth naming.** The guard below catches a
  * signature that moved, but it sits *downstream of the filter*: when the filter stopped matching,

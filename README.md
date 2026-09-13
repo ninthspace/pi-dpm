@@ -16,7 +16,7 @@ runtime](#about-the-host-and-the-runtime) if either is in doubt.
 Clone the repository somewhere you are happy to keep it:
 
 ```sh
-git clone https://github.com/ninthspace/opencode-dpm.git ~/src/opencode-dpm
+git clone https://github.com/ninthspace/pi-dpm.git ~/src/pi-dpm
 ```
 
 Name the entry file and the skills directory in your `opencode.json`, both as absolute
@@ -25,10 +25,10 @@ paths:
 ```json
 {
   "plugin": [
-    "/absolute/path/to/opencode-dpm/src/plugin/index.ts"
+    "/absolute/path/to/pi-dpm/src/plugin/index.ts"
   ],
   "skills": [
-    "/absolute/path/to/opencode-dpm/skills"
+    "/absolute/path/to/pi-dpm/skills"
   ]
 }
 ```
@@ -38,7 +38,7 @@ written: a path beginning `~/` names no file, the entry never loads, and **nothi
 logged** — at any level, with no error and no warning. What makes it worth its own
 paragraph is that the other key does not behave this way. `skills` expands `~` quite
 happily, so the two are written side by side, they look alike, and only one of them
-silently does nothing. The clone command above puts the repository at `~/src/opencode-dpm`;
+silently does nothing. The clone command above puts the repository at `~/src/pi-dpm`;
 what belongs in the file is that path spelled out in full.
 
 Restart `opencode`. That is the install — there is nothing to compile, and upgrading is
@@ -112,10 +112,10 @@ at from the other end. The fix is to name DPM's `skills` path in that project's 
 well; `opencode debug skill` is what tells you, and it is why the check above is worth
 running in a repository where DPM has stopped appearing.
 
-**`opencode plugin opencode-dpm` is not the install**, and the failure it produces is
+**`opencode plugin pi-dpm` is not the install**, and the failure it produces is
 quiet. That is the packaged route — `opencode plugin <module>` takes an npm module name,
 and there is no `add` subcommand — and it unpacks the package under
-`$XDG_CACHE_HOME/opencode/packages/<specifier>/node_modules/opencode-dpm/`, where Node
+`$XDG_CACHE_HOME/opencode/packages/<specifier>/node_modules/pi-dpm/`, where Node
 refuses to strip types from any `.ts` file — on 22 and on 24, with no flag that lifts it.
 The other runtime on hand is the bun compiled into the host, which reads TypeScript from
 anywhere but carries no `node:sqlite`, which is the one thing DPM's server needs. So from
@@ -132,7 +132,7 @@ that disagrees with the database. From the repository root — one command to in
 two to check:
 
 ```sh
-ln -s ~/src/opencode-dpm/hooks/pre-commit .git/hooks/pre-commit
+ln -s ~/src/pi-dpm/hooks/pre-commit .git/hooks/pre-commit
 ls -l .git/hooks/pre-commit
 git config core.hooksPath
 ```
@@ -434,7 +434,7 @@ not remember. **It is bash and zsh, not POSIX `sh`** — a hyphen is not allowed
 function name there, so `sh` rejects `dpm-link` before it runs anything:
 
 ```sh
-DPM_CLONE=~/src/opencode-dpm
+DPM_CLONE=~/src/pi-dpm
 
 dpm-link() {
     ln -s "$DPM_CLONE/hooks/pre-commit" .git/hooks/pre-commit
@@ -465,7 +465,7 @@ apart.
 overwriting is correct — the install command from step 1, with `-f`:
 
 ```sh
-ln -sf ~/src/opencode-dpm/hooks/pre-commit .git/hooks/pre-commit
+ln -sf ~/src/pi-dpm/hooks/pre-commit .git/hooks/pre-commit
 ```
 
 **`-f` deletes what it replaces, without asking and without a copy.** That is what you want
@@ -588,7 +588,7 @@ under [When something else owns the hook](#when-something-else-owns-the-hook) gi
 the warning attached to it there applies here too:
 
 ```sh
-ln -sf ~/src/opencode-dpm/hooks/pre-commit .git/hooks/pre-commit
+ln -sf ~/src/pi-dpm/hooks/pre-commit .git/hooks/pre-commit
 ```
 
 The refusal names the directory it ran from, which is the old one's, so the path you are

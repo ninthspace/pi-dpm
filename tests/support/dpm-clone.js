@@ -9,7 +9,7 @@
  * instructions name a path rather than resolving one. The fixture follows the instructions.
  *
  * The substitution below is what makes that testable. The README addresses a reader who has cloned
- * to `~/src/opencode-dpm`; a test that ran the line unchanged would either link into the author's
+ * to `~/src/pi-dpm`; a test that ran the line unchanged would either link into the author's
  * home directory or fail on a machine that has no such path, and neither reads the instruction.
  */
 
@@ -21,7 +21,7 @@ import { ownedDirectory } from './scratch.js';
 const ROOT = join(import.meta.dirname, '..', '..');
 
 /** The clone path the README's instructions name, and what `follow` rewrites it to. */
-export const DOCUMENTED_CLONE = '~/src/opencode-dpm';
+export const DOCUMENTED_CLONE = '~/src/pi-dpm';
 
 /**
  * The token the README's command blocks put where that path goes, for a reader who chose another.

@@ -40,7 +40,7 @@ import { SERVER_EXECUTABLE } from '../src/plugin/root.ts';
 const ROOT = join(import.meta.dirname, '..');
 
 /** What OpenCode names the directory it installs a plugin package into. */
-const INSTALLED = join('node_modules', 'opencode-dpm');
+const INSTALLED = join('node_modules', 'pi-dpm');
 
 /** Where a v1 install puts its CLI. Absent on most machines, which is why every use of it skips. */
 const V1_CLI = join(process.env.HOME ?? '', '.opencode', 'bin', 'opencode');
