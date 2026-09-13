@@ -51,8 +51,10 @@ As each step closes, `dpm_update_session` moves `phase` on and carries the accum
 `state` — a blob the skill defines and dpm does not interpret.
 
 **When the skill's phase ids are listed at the start of the run, `phase` is one of them and nothing
-else** — the id of the step about to start, not its heading. A value outside the list is refused
-with the list, and nothing is recorded until the call is made again.
+else** — the id of the step about to start, not its heading, and `complete` once the run is
+finished. A value outside the list is refused with the list, and nothing is recorded until the call
+is made again. Move it at every step, including steps whose work looks like the last one's: what
+changes with the phase is not only the row.
 
 **Two things about that call are refused rather than corrected, and both are easy to get wrong.**
 `id` is its only required parameter — the session's own id, the one step 2 or step 3 established —

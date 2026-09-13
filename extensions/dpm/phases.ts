@@ -19,11 +19,19 @@
  * level again before each request, including inside a run already under way, which a skill always is
  * — its gates are tool calls.
  *
+ * **A run that never makes the call is reminded where a step can end.** The third MTPLX run named
+ * `recap`, then `functional`, and then no phase at all for eight gates, so its ADRs were decided at
+ * `functional`'s level. A step ends only when a gate is answered, so every answer to `question`
+ * carries the current phase and the id after it. The reminder lands after the approval and before the
+ * next draft, which is exactly where the level has to change, and it is in a tool result the model
+ * has to read to go on.
+ *
  * **An id the skill does not declare is refused; the order is not checked.** A refusal carries the
  * list, so a run that passed `Section 4` corrects itself on the next call rather than running a
  * judgement step at a transcription step's level. Order is left alone because "the next step" is not
  * well defined: some steps are conditional, `retro` and `library` have modes, and `do` repeats its
- * steps for every task.
+ * steps for every task. `complete` is accepted from every skill as the phase a finished run records,
+ * and it changes no level.
  *
  * **Applied when the call succeeds, not when it is made.** A session call that dpm refuses recorded
  * no phase, and a level changed for it would describe a step the row says was never started.
@@ -38,6 +46,7 @@ import type { DiscoveredSkill } from '../../src/plugin/skills.ts';
 
 import { frontMatter } from '../../src/plugin/skills.ts';
 import { PREFIX } from './adapter.ts';
+import { GATE } from './gate.ts';
 
 export type ThinkingLevel = Parameters<ExtensionAPI['setThinkingLevel']>[0];
 
@@ -46,6 +55,9 @@ export const LEVELS: readonly ThinkingLevel[] = ['off', 'minimal', 'low', 'mediu
 
 /** Where a phased skill starts: Session Startup lists sessions and reads the library, which is recording work. */
 export const START: ThinkingLevel = 'off';
+
+/** The phase a finished run records. Every skill accepts it, none declares it, and it sets no level. */
+export const FINAL = 'complete';
 
 /** The calls that name the step about to start. */
 export const MOVES: readonly string[] = [`${PREFIX}create_session`, `${PREFIX}update_session`];
@@ -93,6 +105,8 @@ export function planFor(skill: Pick<DiscoveredSkill, 'name' | 'content'>): Plan 
       throw new Error(`${skill.name}: phase "${entry}" is not written as id:level`);
     }
 
+    if (id === FINAL) throw new Error(`${skill.name}: "${FINAL}" is every skill's final phase and is not declared`);
+
     return { id, level: levelFrom(level, `${skill.name} phase ${id}`) };
   });
 
@@ -119,7 +133,7 @@ export function plans(skills: readonly Pick<DiscoveredSkill, 'name' | 'content'>
   }));
 }
 
-const listed = (plan: Plan) => plan.phases.map((phase) => phase.id).join(', ');
+const listed = (plan: Plan) => `${plan.phases.map((phase) => phase.id).join(', ')}, then \`${FINAL}\` when the run is finished`;
 
 /**
  * What the model is told when the skill opens: the ids, since the body it reads has no front matter.
@@ -148,6 +162,36 @@ export function unknownPhase(tool: string, skill: string, phase: string, plan: P
     + `${listed(plan)}. Call again with the id of the phase about to start.`;
 }
 
+/**
+ * What an answered gate adds: where the run is, and what to record if the answer ended that step.
+ *
+ * @param plan
+ * @param current The phase last recorded in this run, or `null` when none has been.
+ * @returns {string | null} `null` once the run has recorded `complete`, or for a skill with no steps.
+ */
+export function reminder(plan: Plan, current: string | null): string | null {
+  if (plan.phases.length === 0 || current === FINAL) return null;
+
+  const update = `${PREFIX}update_session`;
+
+  if (current === null) {
+    return `Phase: none recorded in this run yet. Before drafting, record the phase about to start — `
+      + `${plan.phases[0]!.id} or a later one — with ${PREFIX}create_session or ${update}.`;
+  }
+
+  const index = plan.phases.findIndex((phase) => phase.id === current);
+  const next = plan.phases[index + 1];
+
+  if (next === undefined) {
+    return `Phase: \`${current}\`, the last. If this answer finishes the run, call ${update} with phase `
+      + `\`${FINAL}\`.`;
+  }
+
+  return `Phase: \`${current}\`. If this answer closes that step, call ${update} with phase \`${next.id}\` `
+    + '— or a later phase, if that step does not apply — before drafting anything for it. If the step '
+    + 'goes on, carry on.';
+}
+
 /** The `phase` a successful adoption returned, read from the row it hands back. */
 function adoptedPhase(content: readonly { type: string, text?: string }[]): unknown {
   try {
@@ -158,7 +202,7 @@ function adoptedPhase(content: readonly { type: string, text?: string }[]): unkn
 }
 
 /**
- * Wire the guard and the level changes, and return the switch that starts a skill's plan.
+ * Wire the guard, the level changes and the reminder, and return the switch that starts a skill's plan.
  *
  * @param pi
  * @param declared Each skill's plan, as `plans` read them.
@@ -169,14 +213,15 @@ export function registerPhases(pi: ExtensionAPI, declared: Readonly<Record<strin
   activate: (skill: string) => string | null
 } {
   let running: string | null = null;
+  let current: string | null = null;
 
-  const levelOf = (phase: unknown): ThinkingLevel | undefined => (running === null || typeof phase !== 'string'
-    ? undefined
-    : declared[running]!.phases.find((entry) => entry.id === phase)?.level);
+  const known = (phase: unknown): phase is string => running !== null && typeof phase === 'string'
+    && (phase === FINAL || declared[running]!.phases.some((entry) => entry.id === phase));
 
   // A plan belongs to the session it was started in, as the announcement does.
   pi.on('session_start', () => {
     running = null;
+    current = null;
   });
 
   pi.on('tool_call', (event) => {
@@ -185,7 +230,7 @@ export function registerPhases(pi: ExtensionAPI, declared: Readonly<Record<strin
     const plan = declared[running]!;
     const { phase } = event.input as { phase?: unknown };
 
-    if (plan.phases.length === 0 || phase === undefined || levelOf(phase) !== undefined) return undefined;
+    if (plan.phases.length === 0 || phase === undefined || known(phase)) return undefined;
 
     return { block: true, reason: unknownPhase(event.toolName, running, String(phase), plan) };
   });
@@ -193,12 +238,24 @@ export function registerPhases(pi: ExtensionAPI, declared: Readonly<Record<strin
   pi.on('tool_result', (event) => {
     if (running === null || event.isError) return undefined;
 
+    const plan = declared[running]!;
+
+    if (event.toolName === GATE) {
+      const text = reminder(plan, current);
+
+      return text === null ? undefined : { content: [...event.content, { type: 'text' as const, text }] };
+    }
+
     let phase: unknown;
 
     if (event.toolName === ADOPT) phase = adoptedPhase(event.content);
     else if (MOVES.includes(event.toolName)) phase = (event.input as { phase?: unknown }).phase;
 
-    const level = levelOf(phase);
+    if (plan.phases.length === 0 || !known(phase)) return undefined;
+
+    current = phase;
+
+    const level = plan.phases.find((entry) => entry.id === phase)?.level;
 
     if (level !== undefined) pi.setThinkingLevel(level);
 
@@ -210,6 +267,7 @@ export function registerPhases(pi: ExtensionAPI, declared: Readonly<Record<strin
       const plan = Object.hasOwn(declared, skill) ? declared[skill]! : null;
 
       running = plan === null ? null : skill;
+      current = null;
       if (plan === null) return null;
 
       pi.setThinkingLevel(plan.start);

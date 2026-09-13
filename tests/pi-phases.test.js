@@ -11,7 +11,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { LEVELS, MOVES, phaseNote, planFor, plans, START } from '../extensions/dpm/phases.ts';
+import { choiceFor, GATE } from '../extensions/dpm/gate.ts';
+import { FINAL, LEVELS, MOVES, phaseNote, planFor, plans, reminder, START } from '../extensions/dpm/phases.ts';
 import { discoverSkills } from '../src/plugin/skills.ts';
 import {
   answers, callsTool, limitFor, ROOT, runPrompt, scratchProject, scriptedModel, SKILLS, textOf, toolResults,
@@ -63,7 +64,19 @@ test('a phased skill starts off and a thinking skill starts at its level; malfor
 
 test('the note names the ids in order, and a skill with no steps has none', () => {
   assert.match(phaseNote(declared['dpm-spec']), /phases, in order: recap, functional, nonfunctional, /);
+  assert.match(phaseNote(declared['dpm-spec']), /review, then `complete` when the run is finished/);
   assert.equal(phaseNote(declared['dpm-status']), null);
+  assert.throws(() => planFor(skill('phases: recap:off complete:off')), /"complete" is every skill's final phase/);
+});
+
+test('an answered gate is reminded of the phase it is in and the one after it', () => {
+  const plan = planFor(skill('phases: recap:off decisions:high review:high'));
+
+  assert.match(reminder(plan, null), /none recorded in this run yet.*recap or a later one/);
+  assert.match(reminder(plan, 'recap'), /Phase: `recap`\. If this answer closes that step, call dpm_update_session with phase `decisions`/);
+  assert.match(reminder(plan, 'review'), /Phase: `review`, the last\. .*phase `complete`/);
+  assert.equal(reminder(plan, FINAL), null, 'a finished run is still being reminded');
+  assert.equal(reminder(planFor(skill('thinking: low')), null), null, 'a skill with no steps is reminded of steps');
 });
 
 // --- Under pi ---------------------------------------------------------------------------------------
@@ -90,7 +103,7 @@ test('a phase the skill does not declare is refused with the list, and a declare
 
   assert.equal(refused.isError, true, 'a heading was accepted as a phase');
   assert.match(textOf(refused.content), /"Section 4" is not a phase of dpm-spec, so nothing was recorded/);
-  assert.match(textOf(refused.content), /recap, functional, .*, review\./);
+  assert.match(textOf(refused.content), /recap, functional, .*, review, then `complete` when the run is finished\./);
   assert.equal(recorded.isError, false, `the declared phase was refused: ${textOf(recorded.content)}`);
 
   const decisions = declared['dpm-spec'].phases.find((phase) => phase.id === 'decisions').level;
@@ -101,6 +114,43 @@ test('a phase the skill does not declare is refused with the list, and a declare
 
   assert.ok(userText(model.requests[0]).includes(phaseNote(declared['dpm-spec'])),
     'the turn the skill opened on was not told its phase ids');
+});
+
+/**
+ * The reminder and `complete`, in one run: a phase is recorded, a gate is answered and carries the
+ * reminder for that phase, and `complete` is accepted without moving the level off the last step's.
+ */
+test('an answered gate carries the phase reminder, and complete is accepted and leaves the level alone [integration]', limitFor(), async (t) => {
+  const gate = {
+    question: 'Approve the decisions?', header: 'Decisions',
+    options: [{ label: 'Approve', description: 'Record them.' }, { label: 'Stop', description: 'End here.' }],
+  };
+  const model = await scriptedModel(t, [
+    callsTool(MOVES[0], { id: 'phase-reminder', skill: 'dpm:spec', phase: 'decisions' }),
+    callsTool(GATE, { questions: [gate] }, 'Here are the decisions.'),
+    callsTool(MOVES[1], { id: 'phase-reminder', phase: FINAL }),
+    answers('done'),
+  ]);
+  const scratch = scratchProject(t, model.baseUrl, { reasoning: true });
+  const { messages, errors } = await runPrompt(scratch, '/skill:dpm-spec', {
+    args: ['--skill', SKILLS],
+    answer: () => ({ value: choiceFor(gate.options[0]) }),
+  });
+
+  assert.deepEqual(errors, [], 'the run raised an extension error');
+
+  const [created, answered, completed] = toolResults(messages);
+
+  assert.equal(created.isError, false, textOf(created.content));
+  assert.equal(answered.isError, false, textOf(answered.content));
+  assert.match(textOf(answered.content), /"Approve the decisions\?"="Approve/, 'the reminder replaced the answer');
+  assert.match(textOf(answered.content), /Phase: `decisions`\. If this answer closes that step, call dpm_update_session with phase `scope`/);
+  assert.equal(completed.isError, false, `complete was refused: ${textOf(completed.content)}`);
+
+  const decisions = declared['dpm-spec'].phases.find((phase) => phase.id === 'decisions').level;
+
+  assert.deepEqual(model.requests.map(thinkingOf), [START, decisions, decisions, decisions],
+    'complete moved the level, or the recorded phase never did');
 });
 
 test('control: with no skill running, a session call carries any phase and the level is left alone [integration]', limitFor(), async (t) => {
