@@ -164,6 +164,8 @@ const ADDED = [
   'parity-v070.test.js', //            story 5 — the port against v0.7.0's own dump and allocator
   'permission-entries.test.js', //     01-04 story 5 — the README's rules name skills and tools that exist
   'pi-extension.test.js', //           pi port phase 0 — the registry through pi's agent loop, against a restored dump
+  'pi-gate.test.js', //                pi port phase 1 — `question`, in the conventions' shape, answered over RPC and refused without a UI
+  'pi-skills.test.js', //              pi port phase 1 — the registry probe, both routes to a skill, parity with the allow-list
   'plugin-entry.test.js', //           01-02 story 1 — registration, the profile seam, the root
   'plugin-reload.test.js', //          01-02 story 5 — a reload leaves one of everything
   'production-restrictions.test.js', // 01-05 story 3 — nothing contacted, no port bound, no host mechanism
@@ -460,14 +462,13 @@ test('must NOT — a test requires a network connection in order to pass', () =>
   // fourth entry arriving here fails until somebody says which kind it is.
   //
   // **The third is the pi port's scripted model, and it is a listener rather than a connection.**
-  // `pi-extension.test.js` imports `node:http` to stand up an OpenAI-compatible endpoint on
-  // `127.0.0.1`, port chosen by the OS, which the pi CLI it spawns is pointed at. Nothing leaves
-  // the machine: the only client is that child, and the only address is loopback. The suite still
-  // passes with no network, which is the claim, for the same reason `production-restrictions`
-  // does below.
+  // `support/pi.js` imports `node:http` to stand up an OpenAI-compatible endpoint on `127.0.0.1`,
+  // port chosen by the OS, which the pi CLI it spawns is pointed at. Nothing leaves the machine: the
+  // only client is that child, and the only address is loopback. The suite still passes with no
+  // network, which is the claim, for the same reason `production-restrictions` does below.
   assert.deepEqual(importsMatching((specifier) => OUTBOUND.includes(specifier)),
-    ['tests/pi-extension.test.js imports node:http', 'tests/support/network-watch.js imports node:dns',
-      'tests/support/network-watch.js imports node:net'],
+    ['tests/support/network-watch.js imports node:dns', 'tests/support/network-watch.js imports node:net',
+      'tests/support/pi.js imports node:http'],
     'a source imports a builtin that can open a connection');
 
   // The global APIs, which need no import and so would pass the reading above however careful it is.
