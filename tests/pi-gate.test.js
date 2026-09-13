@@ -12,7 +12,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
-  answerText, ask, choiceFor, DONE, GATE, HEADER_LIMIT, OWN_ANSWER, PARAMETERS, registerGate, wrap,
+  answerText, ask, choiceFor, DONE, GATE, HEADER_LIMIT, OWN_ANSWER, PARAMETERS, registerGate, renderedSinceLastGate,
+  UNRENDERED, wrap,
 } from '../extensions/dpm/gate.ts';
 import {
   answers, callsTool, limitFor, ROOT, runJson, runPrompt, scratchProject, scriptedModel, textOf, toolResults,
@@ -39,6 +40,9 @@ const PERSPECTIVES = {
     { label: 'Operator', description: 'What it costs to run' },
   ],
 };
+
+/** The render a scripted model says before its gate, so the guard lets the gate through. */
+const RENDER = 'Here are the requirements being decided.';
 
 /** Dialogs that answer from a script and record what they were shown. */
 function scripted(picks) {
@@ -129,7 +133,7 @@ test('the answer text pairs each question with its answers', () => {
 test('the transcript row shows each question and every option, within the width it is given (R7)', () => {
   let tool;
 
-  registerGate({ registerTool: (definition) => { tool = definition; } });
+  registerGate({ registerTool: (definition) => { tool = definition; }, on: () => {} });
 
   const theme = { fg: (_colour, text) => text, bold: (text) => text };
   const lines = tool.renderCall({ questions: [APPROVE, PERSPECTIVES] }, theme, {}).render(36);
@@ -150,6 +154,30 @@ test('the transcript row shows each question and every option, within the width 
   assert.deepEqual(result, ['✓ Requirements: Approve (Recommended)']);
 });
 
+test('the render window runs back to the last answered gate, and a refused gate does not close it', () => {
+  const said = (text) => ({
+    type: 'message',
+    message: {
+      role: 'assistant',
+      content: [{ type: 'thinking', thinking: 'drafted here' }, ...(text ? [{ type: 'text', text }] : []), { type: 'toolCall', name: GATE }],
+    },
+  });
+  const result = (toolName, isError) => ({ type: 'message', message: { role: 'toolResult', toolName, isError, content: [] } });
+  const user = { type: 'message', message: { role: 'user', content: 'go' } };
+
+  // Gate 7 of the first MTPLX run: the draft in reasoning, nothing in text since the last answer.
+  assert.equal(renderedSinceLastGate([user, said('Draft A'), result(GATE, false), said('')]), '');
+  // A render a few tool calls back still stands above its gate.
+  assert.equal(renderedSinceLastGate([user, said('Draft B'), result('dpm_create_adr', false), said('')]), 'Draft B');
+  // A refused gate is not an answered one.
+  assert.equal(renderedSinceLastGate([user, said('Draft C'), result(GATE, true), said('')]), 'Draft C');
+  // The user's message and a compaction each start a new window.
+  assert.equal(renderedSinceLastGate([said('old'), user, said('')]), '');
+  assert.equal(renderedSinceLastGate([said('old'), { type: 'compaction' }, said('')]), '');
+  // Entries that are not messages are passed over, and whitespace is not a render.
+  assert.equal(renderedSinceLastGate([user, said('Draft D'), { type: 'custom_message' }, said('   ')]), 'Draft D');
+});
+
 test('wrap keeps every line within the width, cutting a word that cannot fit', () => {
   assert.deepEqual(wrap('one two three', 7), ['one two', 'three']);
   assert.deepEqual(wrap('abcdefghij', 4), ['abcd', 'efgh', 'ij']);
@@ -158,7 +186,7 @@ test('wrap keeps every line within the width, cutting a word that cannot fit', (
 // --- Through pi -------------------------------------------------------------------------------------
 
 test('through pi in RPC mode, the client answers both questions and the model gets both answers [integration]', limitFor(), async (t) => {
-  const model = await scriptedModel(t, [callsTool(GATE, { questions: [APPROVE, PERSPECTIVES] }), answers('done')]);
+  const model = await scriptedModel(t, [callsTool(GATE, { questions: [APPROVE, PERSPECTIVES] }, RENDER), answers('done')]);
   const scratch = scratchProject(t, model.baseUrl);
 
   const script = [
@@ -187,8 +215,29 @@ test('through pi in RPC mode, the client answers both questions and the model ge
   assert.match(textOf(returned[0].content), /Operator, Security/, 'the answers did not reach the model');
 });
 
+test('through pi, a gate with nothing rendered above it is blocked before any dialog, and its retry with a render is asked [integration]', limitFor(), async (t) => {
+  const model = await scriptedModel(t, [
+    callsTool(GATE, { questions: [APPROVE] }),
+    callsTool(GATE, { questions: [APPROVE] }, RENDER),
+    answers('done'),
+  ]);
+  const scratch = scratchProject(t, model.baseUrl);
+
+  const { messages, dialogs } = await runPrompt(scratch, 'Gate it.', { answer: (request) => ({ value: request.options[0] }) });
+  const [blocked, asked] = toolResults(messages);
+
+  assert.equal(blocked.isError, true, `a bare gate was let through: ${textOf(blocked.content)}`);
+  assert.ok(textOf(blocked.content).includes(UNRENDERED), `the block did not say why: ${textOf(blocked.content)}`);
+  assert.equal(asked.isError, false, `the rendered retry failed: ${textOf(asked.content)}`);
+  assert.equal(dialogs.length, 1, 'the bare gate reached the user');
+
+  const returned = model.requests[1].messages.filter((entry) => entry.role === 'tool');
+
+  assert.ok(textOf(returned[0].content).includes(UNRENDERED), 'the model was not told why its gate was refused');
+});
+
 test('through pi, a dismissed gate is an error rather than an answer [integration]', limitFor(), async (t) => {
-  const model = await scriptedModel(t, [callsTool(GATE, { questions: [APPROVE] }), answers('done')]);
+  const model = await scriptedModel(t, [callsTool(GATE, { questions: [APPROVE] }, RENDER), answers('done')]);
   const scratch = scratchProject(t, model.baseUrl);
 
   const { messages, dialogs } = await runPrompt(scratch, 'Gate it.', { answer: () => undefined });
@@ -201,7 +250,7 @@ test('through pi, a dismissed gate is an error rather than an answer [integratio
 
 test('through pi, a header over the limit is refused before any dialog opens [integration]', limitFor(), async (t) => {
   const header = 'x'.repeat(HEADER_LIMIT + 1);
-  const model = await scriptedModel(t, [callsTool(GATE, { questions: [{ ...APPROVE, header }] }), answers('done')]);
+  const model = await scriptedModel(t, [callsTool(GATE, { questions: [{ ...APPROVE, header }] }, RENDER), answers('done')]);
   const scratch = scratchProject(t, model.baseUrl);
 
   const { messages, dialogs } = await runPrompt(scratch, 'Gate it.', { answer: () => ({ value: 'unused' }) });
@@ -212,7 +261,7 @@ test('through pi, a header over the limit is refused before any dialog opens [in
 });
 
 test('through pi in JSON mode, where nobody can answer, the gate fails loudly rather than deciding (R8) [integration]', limitFor(), async (t) => {
-  const model = await scriptedModel(t, [callsTool(GATE, { questions: [APPROVE] }), answers('done')]);
+  const model = await scriptedModel(t, [callsTool(GATE, { questions: [APPROVE] }, RENDER), answers('done')]);
   const scratch = scratchProject(t, model.baseUrl);
 
   const { records, stderr } = await runJson(scratch, 'Gate it.');

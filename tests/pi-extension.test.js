@@ -134,7 +134,7 @@ test('pi validates the registry schemas itself: a bad enum or a bad optional nev
 
 test('no tool the extension registers carries a prompt snippet or prompt guidelines (R3, T4)', () => {
   const registered = [];
-  const pi = { registerTool: (definition) => registered.push(definition) };
+  const pi = { registerTool: (definition) => registered.push(definition), on: () => {} };
 
   register(pi, advertisedTools(), () => []);
   registerGate(pi);

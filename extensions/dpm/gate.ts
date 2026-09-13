@@ -29,6 +29,15 @@
  * reads it as permission to go on. Throwing is what sets `isError` (R2), and a stopped run is better
  * than a silently approved gate (R8). A dismissed dialog is refused the same way, for the same
  * reason.
+ *
+ * **A gate with nothing rendered before it is blocked, whatever the model does.** The conventions
+ * ask for the render first, but a model with reasoning on can write its whole draft into the think
+ * block and call `question` with no text at all. Gates 7, 8 and 18 of the first MTPLX `/dpm-spec`
+ * run did exactly that, and each was approved without the user ever seeing the draft. So the
+ * `tool_call` hook refuses the call when no assistant text has been shown since the last answered
+ * gate or the user's last message. Any text is enough: the check catches a gate with nothing above
+ * it, and does not judge how much is there. The cost is the conventions' exception for a
+ * selection-only gate, which under pi needs a sentence of framing.
  */
 
 import type { ExtensionAPI, ExtensionUIContext, ToolDefinition } from '@earendil-works/pi-coding-agent';
@@ -58,6 +67,51 @@ export type GateAnswer = { readonly header: string; readonly question: string; r
 
 /** The two dialog methods the gate uses, so a test can hand it a recorder instead of a terminal. */
 export type Dialogs = Pick<ExtensionUIContext, 'select' | 'input'>;
+
+/** What the model is told when a gate is blocked for having nothing above it. */
+export const UNRENDERED = `${GATE}: nothing was rendered since the last gate. Write what is being decided in your reply text, `
+  + `not in reasoning, then call ${GATE} again.`;
+
+/** A session entry, as far as the guard reads one. */
+type BranchEntry = {
+  readonly type: string;
+  readonly message?: { readonly role: string; readonly content?: unknown; readonly toolName?: string; readonly isError?: boolean };
+};
+
+/**
+ * The assistant text shown since the last answered gate, the user's last message or a compaction,
+ * whichever is latest.
+ *
+ * **A failed `question` call does not close the window.** A gate refused by its schema, or blocked
+ * here, was never answered, so the render before it still stands above the retry. A render a few
+ * tool calls back counts too, because skills often render, record, and then gate.
+ *
+ * @param branch The session branch, root first, as `sessionManager.getBranch()` returns it.
+ * @returns {string}
+ */
+export function renderedSinceLastGate(branch: readonly BranchEntry[]): string {
+  const texts: string[] = [];
+
+  for (let i = branch.length - 1; i >= 0; i -= 1) {
+    const entry = branch[i]!;
+
+    if (entry.type === 'compaction') break;
+
+    const message = entry.type === 'message' ? entry.message : undefined;
+
+    if (message === undefined) continue;
+    if (message.role === 'user') break;
+    if (message.role === 'toolResult' && message.toolName === GATE && !message.isError) break;
+
+    if (message.role === 'assistant' && Array.isArray(message.content)) {
+      texts.unshift(...(message.content as { type?: string; text?: string }[])
+        .filter((block) => block.type === 'text' && block.text?.trim())
+        .map((block) => block.text!.trim()));
+    }
+  }
+
+  return texts.join('\n');
+}
 
 /** The parameters, as plain JSON Schema — pi validates it the same way it validates dpm's own tools. */
 export const PARAMETERS = {
@@ -212,6 +266,15 @@ const block = (theme: Theme, rows: ReadonlyArray<readonly [Colour, string]>): Co
  * @param pi
  */
 export function registerGate(pi: ExtensionAPI): void {
+  // Blocked before any dialog opens, so a gate with nothing above it never reaches the user. pi
+  // brings the session up to date through the calling message before this runs.
+  pi.on('tool_call', (event, ctx) => {
+    if (event.toolName !== GATE) return undefined;
+    if (renderedSinceLastGate(ctx.sessionManager.getBranch() as unknown as readonly BranchEntry[]) !== '') return undefined;
+
+    return { block: true, reason: UNRENDERED };
+  });
+
   pi.registerTool({
     name: GATE,
     label: 'Question',

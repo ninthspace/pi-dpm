@@ -126,10 +126,11 @@ skills that write nothing before approval, there is no row to go and read instea
 numbered as its own step wherever a gate appears, rather than tucked into the clause that names the
 gate, because a clause is what a run under pressure skips.
 
-**The exception is a gate that is only a selection.** Offering the specs in the project, or asking
-whether to sweep evenly or focus, puts every choice in the `options` already; there is no separate
-artefact, and a message body repeating the option labels is noise. The distinction is whether the
-user is choosing *between the options* or judging *something the options refer to*.
+**A gate that is only a selection still gets a sentence.** Offering the specs in the project, or
+asking whether to sweep evenly or focus, puts every choice in the `options` already; there is no
+separate artefact, and a message body repeating the option labels is noise. So the render shrinks to
+one line of framing — what is being chosen, and why now — rather than disappearing. A gate with
+nothing at all above it is refused by the host, whichever kind it is.
 
 **The shape it takes, because getting it wrong costs a round trip each time.** `questions` is an
 array, and each entry requires `question` (the whole question), `header` (a very short label, 30

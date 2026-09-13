@@ -59,10 +59,11 @@ export const chunk = (delta, finish = null) => ({
   choices: [{ index: 0, delta, finish_reason: finish }],
 });
 
-/** A turn that calls one tool. */
-export const callsTool = (name, args) => [
+/** A turn that calls one tool, saying `text` first in the same message when it is given. */
+export const callsTool = (name, args, text) => [
   chunk({
     role: 'assistant',
+    ...(text === undefined ? {} : { content: text }),
     tool_calls: [{ index: 0, id: 'call_1', type: 'function', function: { name, arguments: JSON.stringify(args) } }],
   }),
   chunk({}, 'tool_calls'),
