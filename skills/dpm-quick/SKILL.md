@@ -1,7 +1,8 @@
 ---
 name: dpm-quick
 description: Lightweight execution for a small, well-defined change. Classifies the input as a fix or a change, diagnoses root cause before proposing anything on the fix path, confirms a written record, executes, and closes that same record by deciding each criterion met or not. Run with /dpm-quick.
-phases: classify:medium diagnose:high scope:medium propose:medium execute:medium close:off
+thinking: medium
+phases: classify diagnose scope propose execute close
 ---
 
 # Quick Execution

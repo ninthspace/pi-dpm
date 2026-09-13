@@ -1,18 +1,22 @@
 /**
- * Per-step thinking under pi — each skill's declared steps, the guard on `phase`, and the level that
- * reaches the next request.
+ * Thinking per skill under pi — each skill's declared level and steps, the guard on `phase`, and the
+ * level that reaches every request of the run.
  *
  * **The level is asserted on the request pi sends.** The scripted model is a reasoning one with the
  * `qwen` thinking format, so every request carries `enable_thinking`, and `reasoning_effort` when
  * thinking is on. What `setThinkingLevel` was called with is not the evidence; what the model was
  * asked for is.
+ *
+ * **pi starts at `low`, so the skill's level can be seen.** `dpm-spec` runs at `medium`, which is
+ * also pi's default; the control shows the same `--thinking low` run asking for `low` when no skill
+ * is running.
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { choiceFor, GATE } from '../extensions/dpm/gate.ts';
-import { FINAL, LEVELS, MOVES, phaseNote, planFor, plans, reminder, START } from '../extensions/dpm/phases.ts';
+import { FINAL, LEVELS, MOVES, phaseNote, planFor, plans, reminder } from '../extensions/dpm/phases.ts';
 import { discoverSkills } from '../src/plugin/skills.ts';
 import {
   answers, callsTool, limitFor, ROOT, runPrompt, scratchProject, scriptedModel, SKILLS, textOf, toolResults,
@@ -20,6 +24,10 @@ import {
 
 const skills = discoverSkills(ROOT);
 const declared = plans(skills);
+
+/** The level pi starts at when no skill sets one, chosen to differ from `dpm-spec`'s. */
+const PROJECT_LEVEL = 'low';
+const args = ['--skill', SKILLS, '--thinking', PROJECT_LEVEL];
 
 /** A skill as `planFor` reads it, from front matter lines. */
 const skill = (...lines) => ({ name: 'dpm-x', content: `---\nname: dpm-x\n${lines.join('\n')}\n---\n\n# Body\n` });
@@ -35,42 +43,40 @@ const thinkingOf = (request) => (request.enable_thinking ? request.reasoning_eff
 
 // --- The declarations -------------------------------------------------------------------------------
 
-test('every skill in the tree declares its steps or its one level, and every declaration parses', () => {
+test('every skill in the tree declares its level, and every declaration parses', () => {
   assert.ok(skills.length > 20, `discovery found ${skills.length} skills, so this is not dpm's tree`);
   assert.deepEqual(Object.keys(declared).sort(), skills.map((entry) => entry.name).sort(),
     'a skill with no declaration runs at whatever level the last one left');
 
   for (const [name, plan] of Object.entries(declared)) {
-    for (const phase of plan.phases) {
-      assert.ok(LEVELS.includes(phase.level), `${name} phase ${phase.id} has level ${phase.level}`);
-      assert.match(phase.id, /^[a-z][a-z-]*$/, `${name} phase "${phase.id}" is not a plain id`);
-    }
+    assert.ok(LEVELS.includes(plan.level), `${name} has level ${plan.level}`);
+
+    for (const id of plan.phases) assert.match(id, /^[a-z][a-z-]*$/, `${name} phase "${id}" is not a plain id`);
   }
 });
 
-test('a phased skill starts off and a thinking skill starts at its level; malformed declarations are refused', () => {
-  assert.deepEqual(planFor(skill('phases: recap:off decisions:high')), {
-    start: START, phases: [{ id: 'recap', level: 'off' }, { id: 'decisions', level: 'high' }],
+test('a skill declares one level and optionally its step ids; malformed declarations are refused', () => {
+  assert.deepEqual(planFor(skill('thinking: high', 'phases: recap decisions')), {
+    level: 'high', phases: ['recap', 'decisions'],
   });
-  assert.deepEqual(planFor(skill('thinking: medium')), { start: 'medium', phases: [] });
+  assert.deepEqual(planFor(skill('thinking: medium')), { level: 'medium', phases: [] });
   assert.equal(planFor(skill()), null);
 
-  assert.throws(() => planFor(skill('phases: recap:loud')), /"loud" is not a thinking level/);
-  assert.throws(() => planFor(skill('phases: recap')), /not written as id:level/);
-  assert.throws(() => planFor(skill('phases: recap:off recap:high')), /phase ids repeat \(recap\)/);
-  assert.throws(() => planFor(skill('phases: recap:off', 'thinking: low')), /declares both/);
   assert.throws(() => planFor(skill('thinking: loud')), /"loud" is not a thinking level/);
+  assert.throws(() => planFor(skill('phases: recap decisions')), /declares phases and no thinking level/);
+  assert.throws(() => planFor(skill('thinking: off', 'phases: recap:off decisions:high')), /phase "recap:off" carries a level/);
+  assert.throws(() => planFor(skill('thinking: off', 'phases: recap recap')), /phase ids repeat \(recap\)/);
+  assert.throws(() => planFor(skill('thinking: off', 'phases: recap complete')), /"complete" is every skill's final phase/);
 });
 
 test('the note names the ids in order, and a skill with no steps has none', () => {
   assert.match(phaseNote(declared['dpm-spec']), /phases, in order: recap, functional, nonfunctional, /);
   assert.match(phaseNote(declared['dpm-spec']), /review, then `complete` when the run is finished/);
   assert.equal(phaseNote(declared['dpm-status']), null);
-  assert.throws(() => planFor(skill('phases: recap:off complete:off')), /"complete" is every skill's final phase/);
 });
 
 test('an answered gate is reminded of the phase it is in and the one after it', () => {
-  const plan = planFor(skill('phases: recap:off decisions:high review:high'));
+  const plan = planFor(skill('thinking: medium', 'phases: recap decisions review'));
 
   assert.match(reminder(plan, null), /none recorded in this run yet.*recap or a later one/);
   assert.match(reminder(plan, 'recap'), /Phase: `recap`\. If this answer closes that step, call dpm_update_session with phase `decisions`/);
@@ -84,17 +90,17 @@ test('an answered gate is reminded of the phase it is in and the one after it', 
 /**
  * One run of `/skill:dpm-spec` that passes a heading, then an id.
  *
- * Request 1 is the turn the skill opens on, at `START`. The heading is refused, so request 2 is
- * still at `START`. The id is accepted and recorded, so request 3 carries that step's level.
+ * Every request is at the skill's level, from the turn it opens on: the level is set once, and a
+ * recorded phase does not move it, since a change of level mid-run costs a cached prompt.
  */
-test('a phase the skill does not declare is refused with the list, and a declared one sets the next request\'s level [integration]', limitFor(), async (t) => {
+test('a phase the skill does not declare is refused with the list, and every request is at the skill\'s level [integration]', limitFor(), async (t) => {
   const model = await scriptedModel(t, [
     callsTool(MOVES[0], { id: 'phase-test', skill: 'dpm:spec', phase: 'Section 4' }),
     callsTool(MOVES[0], { id: 'phase-test', skill: 'dpm:spec', phase: 'decisions' }),
     answers('done'),
   ]);
   const scratch = scratchProject(t, model.baseUrl, { reasoning: true });
-  const { messages, errors } = await runPrompt(scratch, '/skill:dpm-spec', { args: ['--skill', SKILLS] });
+  const { messages, errors } = await runPrompt(scratch, '/skill:dpm-spec', { args });
 
   assert.deepEqual(errors, [], 'the run raised an extension error');
   assert.equal(model.requests.length, 3, `the scripted model was asked ${model.requests.length} times`);
@@ -106,21 +112,18 @@ test('a phase the skill does not declare is refused with the list, and a declare
   assert.match(textOf(refused.content), /recap, functional, .*, review, then `complete` when the run is finished\./);
   assert.equal(recorded.isError, false, `the declared phase was refused: ${textOf(recorded.content)}`);
 
-  const decisions = declared['dpm-spec'].phases.find((phase) => phase.id === 'decisions').level;
+  const { level } = declared['dpm-spec'];
 
-  assert.notEqual(decisions, START, 'the step chosen has the opening level, so a change could not be seen');
-  assert.deepEqual(model.requests.map(thinkingOf), [START, START, decisions],
-    'the requests did not follow the phases the run moved through');
+  assert.notEqual(level, PROJECT_LEVEL, 'the skill\'s level is the project\'s, so setting it could not be seen');
+  assert.deepEqual(model.requests.map(thinkingOf), [level, level, level],
+    'a request was not at the skill\'s level');
 
   assert.ok(userText(model.requests[0]).includes(phaseNote(declared['dpm-spec'])),
     'the turn the skill opened on was not told its phase ids');
 });
 
-/**
- * The reminder and `complete`, in one run: a phase is recorded, a gate is answered and carries the
- * reminder for that phase, and `complete` is accepted without moving the level off the last step's.
- */
-test('an answered gate carries the phase reminder, and complete is accepted and leaves the level alone [integration]', limitFor(), async (t) => {
+/** The reminder and `complete`, in one run: a phase is recorded, a gate is answered and carries the reminder, and `complete` is accepted. */
+test('an answered gate carries the phase reminder, and complete is accepted [integration]', limitFor(), async (t) => {
   const gate = {
     question: 'Approve the decisions?', header: 'Decisions',
     options: [{ label: 'Approve', description: 'Record them.' }, { label: 'Stop', description: 'End here.' }],
@@ -133,7 +136,7 @@ test('an answered gate carries the phase reminder, and complete is accepted and 
   ]);
   const scratch = scratchProject(t, model.baseUrl, { reasoning: true });
   const { messages, errors } = await runPrompt(scratch, '/skill:dpm-spec', {
-    args: ['--skill', SKILLS],
+    args,
     answer: () => ({ value: choiceFor(gate.options[0]) }),
   });
 
@@ -147,22 +150,21 @@ test('an answered gate carries the phase reminder, and complete is accepted and 
   assert.match(textOf(answered.content), /Phase: `decisions`\. If this answer closes that step, call dpm_update_session with phase `scope`/);
   assert.equal(completed.isError, false, `complete was refused: ${textOf(completed.content)}`);
 
-  const decisions = declared['dpm-spec'].phases.find((phase) => phase.id === 'decisions').level;
+  const { level } = declared['dpm-spec'];
 
-  assert.deepEqual(model.requests.map(thinkingOf), [START, decisions, decisions, decisions],
-    'complete moved the level, or the recorded phase never did');
+  assert.deepEqual(model.requests.map(thinkingOf), [level, level, level, level], 'the level moved during the run');
 });
 
-test('control: with no skill running, a session call carries any phase and the level is left alone [integration]', limitFor(), async (t) => {
+test('control: with no skill running, a session call carries any phase and the project\'s level is used [integration]', limitFor(), async (t) => {
   const model = await scriptedModel(t, [
     callsTool(MOVES[0], { id: 'phase-control', skill: 'dpm:spec', phase: 'Section 4' }),
     answers('done'),
   ]);
   const scratch = scratchProject(t, model.baseUrl, { reasoning: true });
-  const { messages } = await runPrompt(scratch, 'Record a session.', { args: ['--skill', SKILLS] });
+  const { messages } = await runPrompt(scratch, 'Record a session.', { args });
 
   const [result] = toolResults(messages);
 
   assert.equal(result.isError, false, `a phase was refused outside a skill: ${textOf(result.content)}`);
-  assert.equal(thinkingOf(model.requests[1]), thinkingOf(model.requests[0]), 'the level moved with no skill running');
+  assert.deepEqual(model.requests.map(thinkingOf), [PROJECT_LEVEL, PROJECT_LEVEL], 'the project\'s level was not used');
 });

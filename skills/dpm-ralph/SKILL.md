@@ -1,7 +1,8 @@
 ---
 name: dpm-ralph
 description: Launch an autonomous loop that wraps dpm-do across epics, or works a spec from scratch. Probes the stop hook, resolves what the run will work from the rows, assembles the prompt and confirms before arming. Run with /dpm-ralph.
-phases: preflight:low prompt:medium launch:off
+thinking: low
+phases: preflight prompt launch
 ---
 
 # Autonomous Multi-Epic Execution

@@ -1,7 +1,8 @@
 ---
 name: dpm-present
 description: Audience-aware transformation of planning rows into communications. Takes one or more documents as sources, gates audience then format then draft, and produces derived content — published as a shareable page whose link back to its sources is a row. Regenerable, because the sources are an edge rather than a line of prose. Run with /dpm-present.
-phases: sources:off audience:low format:low draft:high record:off
+thinking: medium
+phases: sources audience format draft record
 ---
 
 # Audience-Aware Transformation

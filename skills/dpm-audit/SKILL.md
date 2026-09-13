@@ -1,7 +1,8 @@
 ---
 name: dpm-audit
 description: Structured audit of the codebase across the project's dimensions of code health. Findings are rows carrying a citation, a dimension and a severity as typed references; the audit is pinned to the commit it was taken at, and its results can be piped into the library, a spec or a quick change. Run with /dpm-audit.
-phases: orient:medium sweep:high rank:high write:off handoff:off
+thinking: medium
+phases: orient sweep rank write handoff
 ---
 
 # Codebase Audit

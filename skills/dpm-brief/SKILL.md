@@ -1,7 +1,8 @@
 ---
 name: dpm-brief
 description: Facilitated product ideation. Takes a problem brief as input, explores solution approaches, and records vision, value propositions, key features, differentiation and user journeys as a product brief. Run with /dpm-brief.
-phases: recap:off approaches:high vision:medium value:medium features:medium differentiation:high journeys:medium summary:off
+thinking: medium
+phases: recap approaches vision value features differentiation journeys summary
 ---
 
 # Facilitated Product Ideation

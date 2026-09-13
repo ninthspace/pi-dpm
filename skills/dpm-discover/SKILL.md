@@ -1,7 +1,8 @@
 ---
 name: dpm-discover
 description: Facilitated problem discovery. Understand the problem before proposing solutions. Produces a problem brief as typed rows through guided conversation. Use when starting a new product, complex feature, or any work where the problem isn't well-defined yet. Run with /dpm-discover.
-phases: why:medium who:low current:low success:high constraints:medium summary:off
+thinking: medium
+phases: why who current success constraints summary
 ---
 
 # Facilitated Problem Discovery

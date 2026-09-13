@@ -1,7 +1,8 @@
 ---
 name: dpm-review
 description: Adversarial review of an epic or one of its stories, using the agent roster. Each persona examines the work through their professional lens; findings carry a severity and a category as typed references, and remediation becomes tasks on the epic. Run with /dpm-review.
-phases: read:off panel:low find:high rank:high write:off remediation:medium handoff:off
+thinking: medium
+phases: read panel find rank write remediation handoff
 ---
 
 # Adversarial Review
