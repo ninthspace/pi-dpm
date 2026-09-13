@@ -278,8 +278,18 @@ export const SDK_TYPE_SURFACE = [...SDK_PACKAGES, '@opencode-ai/schema'];
  * taken `import type`, and both are erased before anything is evaluated — so `dependencies` stays
  * empty and a user still installs nothing. The v1 package's own dependencies (`effect`, `zod`,
  * `@opencode-ai/sdk`, `@ai-sdk/provider`) arrive marked `dev` for the same reason the v2 SDK's do.
+ *
+ * **`@earendil-works/pi-coding-agent` is the pi host, and it is not in `SDK_PACKAGES`.** That list is
+ * what `src/plugin/hosts.ts` names, and the pi extension lives outside `src/` in `extensions/dpm/`,
+ * which pi loads itself. The extension takes the package `import type` only, so the three claims
+ * hold for it too. Its tests spawn the installed pi CLI as a command, the way `tsc` is spawned, and
+ * import nothing from it. Pinned to 0.85.1, the version the port specification was checked against.
+ * It ships an `npm-shrinkwrap.json`, so its own dependencies land nested beneath it rather than
+ * hoisted.
  */
-export const SANCTIONED_DEV_DEPENDENCIES = [...SDK_PACKAGES, '@types/node', 'typescript'];
+export const SANCTIONED_DEV_DEPENDENCIES = [
+  ...SDK_PACKAGES, '@earendil-works/pi-coding-agent', '@types/node', 'typescript',
+];
 
 /**
  * Every argument a package script hands `node` before the file it runs, as `"script: argument"`.

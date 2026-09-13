@@ -170,7 +170,9 @@ test('tsc runs from devDependencies over the whole codebase and exits zero [inte
 
   const { include } = tsconfig();
 
-  assert.deepEqual([...include].sort(), ['bin', 'src', 'tests'],
+  // `extensions` joined with the pi port: the extension is TypeScript pi loads directly, and the
+  // one place its cast onto pi's `ToolDefinition` can be checked.
+  assert.deepEqual([...include].sort(), ['bin', 'extensions', 'src', 'tests'],
     'the check covers the whole codebase, not src/ alone');
 
   const { code, stdout } = await runNode([compiler, '--noEmit'], '', {}, { cwd: ROOT });

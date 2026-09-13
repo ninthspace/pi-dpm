@@ -163,6 +163,7 @@ const ADDED = [
   'module-sweep.test.js', //           story 6 — every specifier resolves, and the sweep can fail
   'parity-v070.test.js', //            story 5 — the port against v0.7.0's own dump and allocator
   'permission-entries.test.js', //     01-04 story 5 — the README's rules name skills and tools that exist
+  'pi-extension.test.js', //           pi port phase 0 — the registry through pi's agent loop, against a restored dump
   'plugin-entry.test.js', //           01-02 story 1 — registration, the profile seam, the root
   'plugin-reload.test.js', //          01-02 story 5 — a reload leaves one of everything
   'production-restrictions.test.js', // 01-05 story 3 — nothing contacted, no port bound, no host mechanism
@@ -370,15 +371,16 @@ test('the test script is node --test, and no third-party runner is installed or 
   // `left-pad` in the same sentence leaves a reader to work out which criterion just broke.
   assert.deepEqual(unsanctionedDependencies(manifest), [],
     'a dependency arrived that is neither the type checker ENVR3 requires nor its type definitions');
-  // **The tripwire, and it has fired twice — deliberately, both times.** `@opencode-ai/plugin`
-  // joined the set when the plugin entry landed, and `@opencode-ai/plugin-v1` when the v1 registrar
-  // needed the other host's published types to check against. The point of writing the members out
-  // here is that widening the set is an edit someone has to make and explain rather than a silence.
-  // What it bought is in `sources.js` both times: each SDK is taken `import type` only, so
-  // `dependencies` stayed `{}` and the assertion above kept the meaning it had. A fifth name
-  // arriving still fails this line.
+  // **The tripwire, and it has fired three times — deliberately, each time.** `@opencode-ai/plugin`
+  // joined the set when the plugin entry landed, `@opencode-ai/plugin-v1` when the v1 registrar
+  // needed the other host's published types to check against, and `@earendil-works/pi-coding-agent`
+  // when the pi port began. The point of writing the members out here is that widening the set is
+  // an edit someone has to make and explain rather than a silence. What it bought is in `sources.js`
+  // each time: nothing moved into `dependencies`, so it stayed `{}` and the assertion above kept the
+  // meaning it had. A sixth name arriving still fails this line.
   assert.deepEqual([...SANCTIONED_DEV_DEPENDENCIES].sort(),
-    ['@opencode-ai/plugin', '@opencode-ai/plugin-v1', '@types/node', 'typescript'],
+    ['@earendil-works/pi-coding-agent', '@opencode-ai/plugin', '@opencode-ai/plugin-v1', '@types/node',
+      'typescript'],
     'the sanctioned set grew, so the assertion above now permits something it did not');
 
   // The package, not the specifier: `jest/globals` and `chai/register` are the same dependency
@@ -455,9 +457,17 @@ test('must NOT — a test requires a network connection in order to pass', () =>
   //
   // **Named rather than exempted**, exactly as the `--import` reading above names the FTS5 fixture:
   // a rule relaxed to `unless it looks like a helper` would admit the next real one silently. A
-  // third entry arriving here fails until somebody says which kind it is.
+  // fourth entry arriving here fails until somebody says which kind it is.
+  //
+  // **The third is the pi port's scripted model, and it is a listener rather than a connection.**
+  // `pi-extension.test.js` imports `node:http` to stand up an OpenAI-compatible endpoint on
+  // `127.0.0.1`, port chosen by the OS, which the pi CLI it spawns is pointed at. Nothing leaves
+  // the machine: the only client is that child, and the only address is loopback. The suite still
+  // passes with no network, which is the claim, for the same reason `production-restrictions`
+  // does below.
   assert.deepEqual(importsMatching((specifier) => OUTBOUND.includes(specifier)),
-    ['tests/support/network-watch.js imports node:dns', 'tests/support/network-watch.js imports node:net'],
+    ['tests/pi-extension.test.js imports node:http', 'tests/support/network-watch.js imports node:dns',
+      'tests/support/network-watch.js imports node:net'],
     'a source imports a builtin that can open a connection');
 
   // The global APIs, which need no import and so would pass the reading above however careful it is.
