@@ -1,6 +1,7 @@
 ---
 name: dpm-artifact
-description: The register of published artifacts and the work they came from. Records what a page is, why it was made, and which documents it was published from, so a URL produced weeks ago can be found, reviewed and amended rather than rebuilt. Invoke with the skill tool, name "dpm-artifact".
+description: The register of published artifacts and the work they came from. Records what a page is, why it was made, and which documents it was published from, so a URL produced weeks ago can be found, reviewed and amended rather than rebuilt. Run with /dpm-artifact.
+thinking: off
 ---
 
 # Artifact Register

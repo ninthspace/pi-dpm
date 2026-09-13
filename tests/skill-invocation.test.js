@@ -22,34 +22,27 @@ import assert from 'node:assert/strict';
 import { conventions, frontMatter, skillNames, skillSource } from './support/skills.js';
 
 /**
- * The sentence every description ends with, built from the id the plugin will actually register.
+ * The sentence every description ends with, built from the id the extension actually registers.
  *
- * **Nothing is prepended here any more, and the deletion is the point.** This read
- * `` `${ID_PREFIX}${name}` `` while the prefix was composed at registration and `name` came from a
- * directory that did not carry it. Epic 02-02 moved the prefix onto the tree, so `name` *is* the
- * registered id — and the old form would have quietly produced `dpm-dpm-do` and demanded every
- * description say so.
+ * **pi has no skill tool, so the sentence names the command.** This was `Invoke with the skill tool,
+ * name "…"`, which was right for OpenCode, whose skill tool takes `name`. pi lists each skill's
+ * description and file in the system prompt and starts a skill from `/skill:<name>`, or from the
+ * `/dpm-*` command `commands.ts` registers for it. A model reading the old sentence under pi is
+ * pointed at a tool that is not in its request.
  */
-const invocation = (name) => `Invoke with the skill tool, name "${name}".`;
+const invocation = (name) => `Run with /${name}.`;
 
 /**
- * The word the sentence must not use, and the whole reason this file now checks a word at all.
+ * What the sentence must not say: the skill tool, in any form.
  *
- * **`id` was wrong for the host dpm actually runs on, and nothing could tell.** OpenCode's skill
- * tool takes one argument — `p.Struct({ name: p.String.annotate({ description: 'The name of the
- * skill from available_skills' }) })` — and every description ended by naming `id`. The description
- * is what the host puts in the system prompt, so a model reading twenty-three of them called the
- * tool with `{ id: 'dpm-spec' }` and got `SchemaError(Missing key at ["name"])`.
- *
- * It survived because nothing exercised it: until the command wrappers landed, the host resolved
- * each skill into a command whose template was the body, so the skill tool was never called and the
- * wrong word was never read by anything. The wrappers made the tool the only route in, and the
- * first `/dpm-spec` after them failed on it.
+ * **The old sentence was wrong twice, and this catches both.** Before pi, every description told the
+ * model to pass `id` to OpenCode's skill tool, which takes `name`, and a model following it got
+ * `SchemaError(Missing key at ["name"])`. Under pi there is no skill tool to pass anything to.
  *
  * Checked as a must-NOT beside the positive reading, because the positive one is satisfied by a
  * description that says the right thing *and* the wrong thing in the same sentence.
  */
-const REFUSED = /skill tool,\s*id\b/;
+const REFUSED = /skill tool/;
 
 test('every description says how the skill is invoked, with its own registered id [unit]', () => {
   const names = skillNames();
@@ -74,21 +67,20 @@ test('every description says how the skill is invoked, with its own registered i
   assert.equal('A skill that does things.'.endsWith(invocation('do')), false);
 });
 
-test('must NOT — no description tells the model to pass `id` to the skill tool [unit]', () => {
-  // **The argument name is the host's, and dpm had it wrong.** See `REFUSED` above for how it
-  // survived twenty-three releases. The sweep is over the corpus rather than a list, so a skill
+test('must NOT — no description sends the model to a skill tool [unit]', () => {
+  // **pi has none.** See `REFUSED` above. The sweep is over the corpus rather than a list, so a skill
   // added by copying an old description fails here rather than in someone's session.
   for (const name of skillNames()) {
     const { description } = frontMatter(skillSource(name));
 
     assert.doesNotMatch(description, REFUSED,
-      `${name}'s description names 'id', which the skill tool has no key for — it takes 'name', `
-      + 'and a model following this gets SchemaError(Missing key at ["name"])');
+      `${name}'s description names the skill tool, which pi does not have`);
   }
 
   // Driven both ways, because a regex that matches nothing passes the loop above over any corpus.
   assert.match('A skill. Invoke with the skill tool, id "dpm-spec".', REFUSED);
-  assert.doesNotMatch('A skill. Invoke with the skill tool, name "dpm-spec".', REFUSED);
+  assert.match('A skill. Invoke with the skill tool, name "dpm-spec".', REFUSED);
+  assert.doesNotMatch('A skill. Run with /dpm-spec.', REFUSED);
 
   // And the two readings agree: the sentence the corpus is held to is not one this refuses.
   assert.doesNotMatch(invocation('dpm-spec'), REFUSED);

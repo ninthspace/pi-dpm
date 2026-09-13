@@ -1,6 +1,7 @@
 ---
 name: dpm-archive
-description: Sweep settled planning artefacts out of the working set. Finds what is finished by reading columns, walks each chain by parentage, and stamps `archived_at` on what the user selects. Invoke with the skill tool, name "dpm-archive".
+description: Sweep settled planning artefacts out of the working set. Finds what is finished by reading columns, walks each chain by parentage, and stamps `archived_at` on what the user selects. Run with /dpm-archive.
+phases: survey:off chains:medium settled:high stamp:off
 ---
 
 # Archive Planning Documents

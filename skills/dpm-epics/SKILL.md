@@ -1,6 +1,7 @@
 ---
 name: dpm-epics
-description: Break a specification into epics, stories and tasks through facilitated conversation. Reads a spec's requirements and tagged criteria and records the breakdown — epics, their stories, each story's tasks and acceptance criteria, and the coverage rows binding each criterion to the requirement text it delivers — as typed rows. Invoke with the skill tool, name "dpm-epics".
+description: Break a specification into epics, stories and tasks through facilitated conversation. Reads a spec's requirements and tagged criteria and records the breakdown — epics, their stories, each story's tasks and acceptance criteria, and the coverage rows binding each criterion to the requirement text it delivers — as typed rows. Run with /dpm-epics.
+phases: read:off epics:high stories:high tasks:medium integration:medium coverage:high confirm:off
 ---
 
 # Work Breakdown into Epics

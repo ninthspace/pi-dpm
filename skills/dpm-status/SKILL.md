@@ -1,6 +1,7 @@
 ---
 name: dpm-status
-description: Project status reconnaissance. Reports what exists, what is in flight and what needs attention from queries over the planning rows and read-only git history, with an optional spec coverage roll-up and an optional shareable full-picture page. Writes nothing. Invoke with the skill tool, name "dpm-status".
+description: Project status reconnaissance. Reports what exists, what is in flight and what needs attention from queries over the planning rows and read-only git history, with an optional spec coverage roll-up and an optional shareable full-picture page. Writes nothing. Run with /dpm-status.
+thinking: off
 ---
 
 # Project Status
@@ -189,7 +190,7 @@ List requirements carrying an `exclusion` separately, as ruled out rather than o
 with the counts.
 
 **Say what `verified_at` means wherever the section shows it: aggregation, not verification.** Every
-one was set by `dpm:do` on its own work. Reporting them together reports what `do` claimed, more
+one was set by `dpm-do` on its own work. Reporting them together reports what `do` claimed, more
 conveniently, and adds no independent evidence. A wall of green is not confirmation that anything
 runs. The untraced count is the part that discriminates, because the requirements are written by a
 person and the coverage rows are made later against them.

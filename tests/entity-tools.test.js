@@ -323,6 +323,37 @@ test('a milestone join across two specs is refused, and one within a spec is not
   assert.match(across.message, /M3/);
 });
 
+test('a trade-off on an option id that names nothing is refused with the options of the ADR written last', (t) => {
+  const { call } = surface(t);
+  const { spec } = roots(call);
+
+  const refusal = (optionId) => {
+    try {
+      call.create_adr_option_tradeoff({ option_id: optionId, axis: 'cost', assessment: 'Cheap.' });
+    } catch (error) {
+      return error.message;
+    }
+
+    return assert.fail(`a trade-off on '${optionId}' was recorded`);
+  };
+
+  // Before any option exists there is nothing to offer, and the refusal says where an id comes from.
+  assert.match(refusal('made-up'), /no ADR option has id 'made-up', and none are recorded yet/);
+
+  const adr = call.create_adr({ parent_id: spec.id, slug: 'a', title: 'ADR', decision: 'd' });
+  const kept = call.create_adr_option({ adr_id: adr.id, name: 'Keep', position: 0 });
+  const moved = call.create_adr_option({ adr_id: adr.id, name: 'Move', position: 1 });
+
+  // The shape the MTPLX run produced: a real id with a suffix the model added.
+  const message = refusal(`${kept.id}-0`);
+
+  assert.ok(message.includes(`no ADR option has id '${kept.id}-0', so nothing was recorded`), message);
+  assert.ok(message.includes(`'${kept.id}' (Keep), '${moved.id}' (Move)`), message);
+
+  // The control: the id it offered is accepted.
+  assert.equal(call.create_adr_option_tradeoff({ option_id: kept.id, axis: 'cost', assessment: 'Cheap.' }).axis, 'cost');
+});
+
 // --- The rest of the surface, round-tripped -------------------------------------------------------
 
 test('every remaining type creates and reads back through its own tools', (t) => {

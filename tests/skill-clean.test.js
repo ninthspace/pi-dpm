@@ -281,14 +281,16 @@ test('everything is listed, only what was named goes, and no loop can reach it',
   // skill in the corpus names this one. A rule in this file alone is a rule the file that would
   // violate it never reads.
   const callers = readdirSync(SKILLS, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name !== SKILL)
-    .filter((entry) => /dpm:clean|\/clean\b/.test(readFileSync(join(SKILLS, entry.name, 'SKILL.md'), 'utf8')))
+    // The directory is `dpm-clean` since the prefix moved onto the tree. Compared against the bare
+    // name, clean was never excluded, which went unseen until its description named `/dpm-clean`.
+    .filter((entry) => entry.isDirectory() && entry.name !== `dpm-${SKILL}`)
+    .filter((entry) => /dpm:clean|\/clean\b|\/dpm-clean\b/.test(readFileSync(join(SKILLS, entry.name, 'SKILL.md'), 'utf8')))
     .map((entry) => entry.name);
 
   assert.deepEqual(callers, [], 'another skill invokes clean — an autonomous loop can reach it');
 
   assert.match(source, /no autonomous loop reaches it/);
-  assert.match(source, /`dpm:ralph` and anything else running\s*unattended never invokes it/);
+  assert.match(source, /`dpm-ralph` and anything else running\s*unattended never invokes it/);
   assert.match(source, /This skill is stateless/);
 
   // Every gap is `\s+`: `instructions` keeps a continuation line's indent, so an assertion written

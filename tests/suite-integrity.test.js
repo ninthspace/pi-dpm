@@ -165,6 +165,7 @@ const ADDED = [
   'permission-entries.test.js', //     01-04 story 5 — the README's rules name skills and tools that exist
   'pi-extension.test.js', //           pi port phase 0 — the registry through pi's agent loop, against a restored dump
   'pi-gate.test.js', //                pi port phase 1 — `question`, in the conventions' shape, answered over RPC and refused without a UI
+  'pi-phases.test.js', //              pi port phase 1 — each skill's steps and levels, the phase guard, the level on the next request
   'pi-skills.test.js', //              pi port phase 1 — the registry probe, both routes to a skill, parity with the allow-list
   'plugin-entry.test.js', //           01-02 story 1 — registration, the profile seam, the root
   'plugin-reload.test.js', //          01-02 story 5 — a reload leaves one of everything

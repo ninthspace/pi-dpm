@@ -1,6 +1,7 @@
 ---
 name: dpm-party
-description: A multi-persona discussion. The whole roster is in the room; two or three of them answer each turn, build on each other and disagree where they genuinely differ. Saved as a discussion when it ends. Invoke with the skill tool, name "dpm-party".
+description: A multi-persona discussion. The whole roster is in the room; two or three of them answer each turn, build on each other and disagree where they genuinely differ. Saved as a discussion when it ends. Run with /dpm-party.
+thinking: medium
 ---
 
 # Party Mode

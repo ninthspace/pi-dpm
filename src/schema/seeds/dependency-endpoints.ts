@@ -13,19 +13,19 @@
 export const DEPENDENCY_ENDPOINTS = [
   // The original rule, and the one the kind was seeded for: spec-to-spec lineage.
   ['builds_on', 'spec', 'spec'],
-  // `dpm:spec` Section 1 — "if the input was a brief, record the lineage". Both brief kinds, since
+  // `dpm-spec` Section 1 — "if the input was a brief, record the lineage". Both brief kinds, since
   // the section resolves either as its starting context.
   ['builds_on', 'spec', 'problem_brief'],
   ['builds_on', 'spec', 'product_brief'],
-  // The same lineage from a consultation: `dpm:consult` hands its discussion to `dpm:spec`, and the
+  // The same lineage from a consultation: `dpm-consult` hands its discussion to `dpm-spec`, and the
   // spec that results came from it exactly as one from a brief did.
   ['builds_on', 'spec', 'discussion'],
-  // `dpm:audit` Step 5 — the library wrapper carrying an audit's findings into other skills' Library
+  // `dpm-audit` Step 5 — the library wrapper carrying an audit's findings into other skills' Library
   // Check, edged back to the audit that produced it.
   ['builds_on', 'library', 'audit'],
-  // `dpm:architect` Phase 5, and the pair entry 6 already named.
+  // `dpm-architect` Phase 5, and the pair entry 6 already named.
   ['constrains', 'adr', 'adr'],
-  // `dpm:architect`'s supersession, whose direction is stated on the kind: the source is the
+  // `dpm-architect`'s supersession, whose direction is stated on the kind: the source is the
   // superseded end. Constrained here because the skill writes it between two ADRs and nothing else
   // writes it at all.
   ['supersedes', 'adr', 'adr'],

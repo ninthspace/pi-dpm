@@ -1,6 +1,7 @@
 ---
 name: dpm-consult
-description: A focused consultation with one agent persona, or a small panel. You control who is in the room and who is driving; the conversation is saved as a discussion when it ends. Invoke with the skill tool, name "dpm-consult".
+description: A focused consultation with one agent persona, or a small panel. You control who is in the room and who is driving; the conversation is saved as a discussion when it ends. Run with /dpm-consult.
+thinking: medium
 ---
 
 # Consult Mode

@@ -39,6 +39,7 @@ import { activateSkills } from './activation.ts';
 import { register } from './adapter.ts';
 import { registerCommands } from './commands.ts';
 import { registerGate } from './gate.ts';
+import { plans, registerPhases } from './phases.ts';
 import { announceSession } from './session.ts';
 
 export default function dpm(pi: ExtensionAPI): void {
@@ -52,9 +53,13 @@ export default function dpm(pi: ExtensionAPI): void {
     return live;
   });
   registerGate(pi);
-  registerCommands(pi, discoverSkills(root), join(root, SKILLS_DIRECTORY));
+
+  const skills = discoverSkills(root);
+
+  registerCommands(pi, skills, join(root, SKILLS_DIRECTORY));
 
   const announcement = announceSession(pi);
+  const phases = registerPhases(pi, plans(skills));
 
-  activateSkills(pi, allowances(root), () => announcement.arm());
+  activateSkills(pi, allowances(root), (skill) => announcement.arm(phases.activate(skill)));
 }

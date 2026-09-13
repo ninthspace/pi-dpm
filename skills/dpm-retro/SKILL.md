@@ -1,6 +1,7 @@
 ---
 name: dpm-retro
-description: Lightweight retrospective over a finished epic or quick record, and the three passes that keep the corpus honest — promoting a durable lesson into the library, retiring a spent one, and waiving a clean epic that has nothing to reflect on. Observations are rows that keep their origin. Invoke with the skill tool, name "dpm-retro".
+description: Lightweight retrospective over a finished epic or quick record, and the three passes that keep the corpus honest — promoting a durable lesson into the library, retiring a spent one, and waiving a clean epic that has nothing to reflect on. Observations are rows that keep their origin. Run with /dpm-retro.
+phases: gather:off synthesise:high write:off library:low handoff:off select:medium promote:low retire:medium classify:high waive:off
 ---
 
 # Lightweight Retrospective

@@ -1,6 +1,7 @@
 ---
 name: dpm-do
-description: Execute the stories and tasks of an epic, one at a time — load context, do the work, verify each acceptance criterion, record the verification, and move on. Reads readiness from the dependency graph and writes status, observations and verification as typed rows. Invoke with the skill tool, name "dpm-do".
+description: Execute the stories and tasks of an epic, one at a time — load context, do the work, verify each acceptance criterion, record the verification, and move on. Reads readiness from the dependency graph and writes status, observations and verification as typed rows. Run with /dpm-do.
+phases: select:low load:off start:off plan:high work:medium verify:medium refactor:medium complete:off next:off summary:off
 ---
 
 # Task Execution

@@ -1,6 +1,7 @@
 ---
 name: dpm-inspect
-description: Code, after execution — presents what a change set actually did and where it sits in the repository. Resolves a commit range, branch or working tree, works out the axis that best explains the change, situates it against what was already there and what was deliberately left alone, and joins it to the planning rows that record intent. Invoke with the skill tool, name "dpm-inspect".
+description: Code, after execution — presents what a change set actually did and where it sits in the repository. Resolves a commit range, branch or working tree, works out the axis that best explains the change, situates it against what was already there and what was deliberately left alone, and joins it to the planning rows that record intent. Run with /dpm-inspect.
+phases: axis:high situate:low join:medium verify:high unread:off report:off
 ---
 
 # Change-Set Inspection

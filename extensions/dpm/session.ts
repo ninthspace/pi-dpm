@@ -31,11 +31,15 @@ export const ANNOUNCEMENT = 'dpm-session-id';
  * `display: false` because this is for the model, as OpenCode's synthetic part was. It is still
  * written to the session file, so it can be read back later.
  *
+ * `note` rides in the same message, after the sentence, so the skill's phase ids reach the model
+ * on the turn that needs them without a second message of dpm's in the turn.
+ *
  * @param pi
- * @returns {{ arm: () => void }}
+ * @returns {{ arm: (note?: string | null) => void }}
  */
-export function announceSession(pi: ExtensionAPI): { arm: () => void } {
+export function announceSession(pi: ExtensionAPI): { arm: (note?: string | null) => void } {
   let armed = false;
+  let pending: string | null = null;
 
   pi.on('session_start', () => {
     armed = false;
@@ -45,14 +49,21 @@ export function announceSession(pi: ExtensionAPI): { arm: () => void } {
     if (!armed) return undefined;
     armed = false;
 
+    const sentence = announcement(ctx.sessionManager.getSessionId());
+
     return {
       message: {
         customType: ANNOUNCEMENT,
-        content: announcement(ctx.sessionManager.getSessionId()),
+        content: pending === null ? sentence : `${sentence}\n\n${pending}`,
         display: false,
       },
     };
   });
 
-  return { arm: () => { armed = true; } };
+  return {
+    arm: (note = null) => {
+      armed = true;
+      pending = note;
+    },
+  };
 }

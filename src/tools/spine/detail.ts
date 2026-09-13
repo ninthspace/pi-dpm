@@ -225,6 +225,33 @@ export function detailChildTools(context: Context): Tool[] {
       },
       required: ['assessment'],
       body: ['assessment'],
+
+      // **An option id that names nothing is refused with the ids that do.** The foreign key would
+      // refuse it anyway, as `FOREIGN KEY constraint failed`, which says neither which column nor
+      // what would have worked. A local model recording trade-offs made up ids close to the real
+      // ones — a suffix added, a character changed — fifteen times in one run, and each retry was
+      // another guess. The options of the ADR written last are the ones a run recording trade-offs
+      // is almost always working on, and naming them turns the retry into a copy.
+      guard: (row, where) => {
+        if (db.prepare('SELECT 1 FROM adr_option WHERE id = ?').get(row.option_id) !== undefined) return;
+
+        const latest = db.prepare('SELECT adr_id FROM adr_option ORDER BY id DESC LIMIT 1').get() as
+          { adr_id: string } | undefined;
+
+        if (latest === undefined) {
+          throw new ToolError(`${where}: no ADR option has id '${row.option_id}', and none are recorded `
+            + 'yet — create_adr_option returns the id a trade-off takes');
+        }
+
+        const offered = db
+          .prepare('SELECT id, name FROM adr_option WHERE adr_id = ? ORDER BY position, id')
+          .all(latest.adr_id) as Row[];
+
+        throw new ToolError(`${where}: no ADR option has id '${row.option_id}', so nothing was recorded. `
+          + `The options of ADR '${latest.adr_id}', the one written last, are `
+          + `${offered.map((option) => `'${option.id}' (${option.name})`).join(', ')}. `
+          + 'Pass the id exactly as create_adr_option returned it');
+      },
     }),
 
     // Not a detail table of `review`, because a discussion records the same fact: `party` and

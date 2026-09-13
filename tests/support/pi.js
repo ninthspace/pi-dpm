@@ -115,11 +115,16 @@ export async function scriptedModel(t, turns) {
  * running unchanged inside pi. `PI_CODING_AGENT_DIR` points at `home`, so the user's `~/.pi` is out
  * of the run entirely.
  *
+ * **`reasoning` makes the scripted model one that thinks**, with the `qwen` format MTPLX uses, so
+ * each request carries `enable_thinking` and `reasoning_effort` and the level pi chose can be read
+ * off it. Left false, pi clamps every level to off and nothing about thinking reaches the request.
+ *
  * @param {import('node:test').TestContext} t
  * @param {string} baseUrl
- * @param {{settings?: object}} [options] Written to the project's `.pi/settings.json` when given.
+ * @param {{settings?: object, reasoning?: boolean}} [options] `settings` is written to the project's
+ *   `.pi/settings.json` when given.
  */
-export function scratchProject(t, baseUrl, { settings } = {}) {
+export function scratchProject(t, baseUrl, { settings, reasoning = false } = {}) {
   const project = ownedDirectory(t, 'dpm-pi-');
   const home = join(project, 'pi-home');
 
@@ -141,7 +146,8 @@ export function scratchProject(t, baseUrl, { settings } = {}) {
         models: [{
           id: 'scripted',
           name: 'Scripted',
-          reasoning: false,
+          reasoning,
+          ...(reasoning ? { compat: { thinkingFormat: 'qwen', supportsReasoningEffort: true } } : {}),
           input: ['text'],
           contextWindow: 32768,
           maxTokens: 4096,

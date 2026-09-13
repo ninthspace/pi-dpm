@@ -1,6 +1,7 @@
 ---
 name: dpm-clean
-description: Remove leftover session rows on demand. Lists every session with its skill, phase and age, marks the stale ones and this session's own, and deletes only the rows the user names. Invoke with the skill tool, name "dpm-clean".
+description: Remove leftover session rows on demand. Lists every session with its skill, phase and age, marks the stale ones and this session's own, and deletes only the rows the user names. Run with /dpm-clean.
+thinking: low
 ---
 
 # Clean Session State
@@ -10,7 +11,7 @@ Remove session rows that outlived the runs they belonged to.
 **This skill is stateless.** It opens no session of its own — it is the one that removes them, and a
 run recording its own progress would leave behind exactly what it came to clear.
 
-**It is interactive, and no autonomous loop reaches it.** `dpm:ralph` and anything else running
+**It is interactive, and no autonomous loop reaches it.** `dpm-ralph` and anything else running
 unattended never invokes it. Deletion is irreversible, a session row is the only thing a stopped run
 left behind, and deciding which of those are finished is a judgement that has to be made by someone.
 

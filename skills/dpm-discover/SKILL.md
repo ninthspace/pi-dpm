@@ -1,6 +1,7 @@
 ---
 name: dpm-discover
-description: Facilitated problem discovery. Understand the problem before proposing solutions. Produces a problem brief as typed rows through guided conversation. Use when starting a new product, complex feature, or any work where the problem isn't well-defined yet. Invoke with the skill tool, name "dpm-discover".
+description: Facilitated problem discovery. Understand the problem before proposing solutions. Produces a problem brief as typed rows through guided conversation. Use when starting a new product, complex feature, or any work where the problem isn't well-defined yet. Run with /dpm-discover.
+phases: why:medium who:low current:low success:high constraints:medium summary:off
 ---
 
 # Facilitated Problem Discovery
@@ -97,7 +98,7 @@ be, and offer the checkable form. That is a refinement round, not a rejection of
 Technical constraints (language, framework, infrastructure), business constraints (budget,
 timeline, compliance), and what is explicitly out of scope.
 
-**This is where constraints are captured for the whole pipeline.** `dpm:spec` reaches back past the
+**This is where constraints are captured for the whole pipeline.** `dpm-spec` reaches back past the
 product brief to read this phase's section and facilitates only the gaps, so a constraint left out
 here is one the spec has no reason to ask about.
 

@@ -165,20 +165,19 @@ test('the skill-body check passes over the renamed corpus [integration]', () => 
 });
 
 test('every skill id a body names resolves to a skill on disk [unit]', () => {
-  // The cross-reference half of the criterion. The bodies name each other as `name "dpm-<skill>"`
-  // — they already carried the prefix before the rename — so what this reads is whether the tree
-  // still answers to what they say.
+  // The cross-reference half of the criterion. The bodies name skills as the command that runs them,
+  // `/dpm-<skill>`, so what this reads is whether the tree still answers to what they say.
   //
-  // **The quoted word is `name` because the host's skill tool has no `id`.** This read `id "..."`
-  // while the descriptions did, and the two moved together the day a `/dpm-spec` run failed on
-  // `SchemaError(Missing key at ["name"])`. The `cited.size` assertion below is what makes the
-  // pattern honest: a regex that stopped matching the sentence would find nothing, and a check
-  // over an empty set reports no dangling references with complete confidence.
+  // **The form is the command because pi has no skill tool.** This read `name "..."`, and before
+  // that `id "..."`, following whatever the descriptions told a skill tool to take. The lookbehind
+  // keeps a path such as `skills/dpm-spec` from counting as a command. The `cited.size` assertion
+  // below is what makes the pattern honest: a regex that stopped matching the sentence would find
+  // nothing, and a check over an empty set reports no dangling references with complete confidence.
   const live = new Set(skillNames());
   const cited = new Map();
 
   for (const directory of skillNames()) {
-    for (const [, id] of skillSource(directory).matchAll(/\bname "([^"]+)"/g)) {
+    for (const [, id] of skillSource(directory).matchAll(/(?<![\w./-])\/(dpm-[a-z]+)\b/g)) {
       cited.set(id, [...(cited.get(id) ?? []), directory]);
     }
   }

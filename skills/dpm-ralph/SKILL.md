@@ -1,6 +1,7 @@
 ---
 name: dpm-ralph
-description: Launch an autonomous loop that wraps dpm-do across epics, or works a spec from scratch. Probes the stop hook, resolves what the run will work from the rows, assembles the prompt and confirms before arming. Invoke with the skill tool, name "dpm-ralph".
+description: Launch an autonomous loop that wraps dpm-do across epics, or works a spec from scratch. Probes the stop hook, resolves what the run will work from the rows, assembles the prompt and confirms before arming. Run with /dpm-ralph.
+phases: preflight:low prompt:medium launch:off
 ---
 
 # Autonomous Multi-Epic Execution
@@ -21,7 +22,7 @@ Follow the shared conventions — call `dpm_read_shared_document` with `name: "s
 at startup and read what it returns.
 This skill uses **Session Startup**, **Library Check**, **Gate Presentation**, **Conversational
 Output** and **Written Deliverable Length** from it. It does not use **Retro Awareness**: an
-autonomous run's lessons are dispositioned by `dpm:do` inside the loop, and offering them again here
+autonomous run's lessons are dispositioned by `dpm-do` inside the loop, and offering them again here
 would ask a question about a run that has not started.
 
 ## Input
