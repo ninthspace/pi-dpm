@@ -37,16 +37,22 @@ function surface(t) {
   return { db, call: handlers(tools) };
 }
 
+const AMENDED = 'The register names the bindings somebody still has to decide about.';
+
 /**
- * A requirement whose text does not contain the fragment bound to it — entry 9's violation.
+ * A requirement quoting each fragment, and `amend` to delete them — entry 9's violation.
  *
- * `boundCoverage` derives the requirement's text from the fragment, which is what makes its
- * default binding sound; passing both explicitly is what makes this one broken.
+ * **Bound first and amended after, because that is the only way the state now arises.**
+ * `create_coverage` refuses a fragment its requirement does not contain, so a live binding that
+ * entry 9 names is one whose requirement was rewritten under it. `binding()` binds the first.
  */
-const broken = (db, fragment) => bound(db, {
-  fragment,
-  requirement: 'The register names the bindings somebody still has to decide about.',
-});
+function broken(db, ...fragments) {
+  const fixture = bound(db, { fragment: fragments[0], requirement: `${AMENDED} ${fragments.join('; ')}.` });
+  const amend = () => db.prepare('UPDATE requirement SET text = ? WHERE id = ?')
+    .run(AMENDED, fixture.requirement.id);
+
+  return { ...fixture, amend };
+}
 
 /** The binding ids entry 9 names, through the check a person actually runs. */
 const namedByEntryNine = (db) => namedBy(db, 9);
@@ -71,8 +77,10 @@ function everyBrokenBinding(db) {
 
 test('entry 9 names a live binding whose fragment its requirement no longer contains [integration]', (t) => {
   const { db, call } = surface(t);
-  const { binding } = broken(db, 'a clause the amendment deleted');
+  const { binding, amend } = broken(db, 'a clause the amendment deleted');
   const row = call.create_coverage(binding());
+
+  amend();
 
   assert.deepEqual(namedByEntryNine(db), [row.id], 'named, and named by its id rather than counted');
   assert.equal(checkIntegrity(db).ok, false, 'and the report as a whole does not pass');
@@ -82,8 +90,10 @@ test('entry 9 names a live binding whose fragment its requirement no longer cont
 
 test('retiring that binding removes it from entry 9, which then holds [integration]', (t) => {
   const { db, call } = surface(t);
-  const { binding, criterion, requirement } = broken(db, 'a clause the amendment deleted');
+  const { binding, criterion, requirement, amend } = broken(db, 'a clause the amendment deleted');
   const row = call.create_coverage(binding());
+
+  amend();
 
   assert.deepEqual(namedByEntryNine(db), [row.id], 'the entry fires before the retirement');
 
@@ -133,26 +143,24 @@ test('retiring that binding removes it from entry 9, which then holds [integrati
 
 test('entry 9 does not name a retired binding whose fragment still matches [integration]', (t) => {
   const { db, call } = surface(t);
-  const { binding } = broken(db, 'a clause the amendment deleted');
+  const { binding, amend } = broken(db, 'a clause the amendment deleted');
 
-  // One fixture, two bindings on the same requirement: this fragment is a verbatim substring of
-  // its text, so the binding is sound, and retiring it is a decision about a criterion rather
-  // than about a fragment that stopped matching.
+  // One fixture, two bindings on the same requirement: this fragment survives the amendment, so
+  // the binding stays sound, and retiring it is a decision about a criterion rather than about a
+  // fragment that stopped matching.
   const sound = call.create_coverage({
     ...binding(),
     spec_fragment: 'somebody still has to decide about',
   });
-
-  call.retire_coverage({ id: sound.id, reason: 'the criterion it named was superseded' });
-
-  assert.deepEqual(namedByEntryNine(db), [], 'a sound retirement is not a broken binding');
-
-  // The control for the rejection: the entry is still looking. A second binding, broken and live,
-  // is named in the same breath — so "not named" above is a judgement about that row rather than
-  // an entry that has stopped reading.
+  // The control for the rejection: the entry is still looking. A second binding, broken by the
+  // amendment and live, is named in the same breath — so the sound one's absence is a judgement
+  // about that row rather than an entry that has stopped reading.
   const live = call.create_coverage({ ...binding(), position: 1 });
 
-  assert.deepEqual(namedByEntryNine(db), [live.id], 'and the entry names the one that is broken');
+  call.retire_coverage({ id: sound.id, reason: 'the criterion it named was superseded' });
+  amend();
+
+  assert.deepEqual(namedByEntryNine(db), [live.id], 'the entry names the one that is broken, and not the sound retirement');
   assert.deepEqual(
     everyBrokenBinding(db),
     [live.id],
@@ -164,13 +172,15 @@ test('entry 9 does not name a retired binding whose fragment still matches [inte
 
 test('a second broken binding is named after the first is retired [integration]', (t) => {
   const { db, call } = surface(t);
-  const { binding } = broken(db, 'a clause the amendment deleted');
+  const { binding, amend } = broken(db, 'a clause the amendment deleted', 'a second clause the amendment deleted');
   const first = call.create_coverage(binding());
   const second = call.create_coverage({
     ...binding(),
     spec_fragment: 'a second clause the amendment deleted',
     position: 1,
   });
+
+  amend();
 
   assert.deepEqual(namedByEntryNine(db), [first.id, second.id].sort(), 'both are named while live');
 

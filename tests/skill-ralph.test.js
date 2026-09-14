@@ -121,13 +121,13 @@ function workspace(tools) {
   seed.create_coverage({
     requirement_id: traced.id,
     story_criterion_id: open.id,
-    spec_fragment: 'A run reports.',
+    spec_fragment: 'A run resumes.',
     position: 1,
   });
   seed.create_coverage({
     requirement_id: traced.id,
     story_criterion_id: hosted.id,
-    spec_fragment: 'The host answers.',
+    spec_fragment: 'A run resumes',
     position: 2,
   });
 

@@ -40,6 +40,16 @@ An empty database gets step 4, which is the expected first run rather than a fai
 Follow the shared **Session Startup** procedure with `skill: 'dpm:spec'`, putting the section about
 to start in `phase` and moving it on as each section is approved.
 
+**On a resume, the rows say what is written** — the Session Startup rule. A section's rows are
+written when it is approved and `phase` moves after, so a stop between the two leaves a section
+written and still recorded as the one to do. Before proposing a section again, list what it writes:
+
+- `recap` — `dpm_list_document_section` with the spec's id as `document_id`, and `dpm_list_dependency` with it as `source_document_id`;
+- `functional`, `nonfunctional`, `environment` — `dpm_list_requirement` with `spec_id` and `include_body`, since the text is how a written requirement is told from a proposed one;
+- `decisions` — `dpm_list_adr` with the spec as `parent_id`, then `dpm_list_adr_option` with `adr_id` for each ADR;
+- `scope`, `integration` — `dpm_list_document_section` with the spec's id as `document_id`;
+- `criteria` — `dpm_list_acceptance_criterion` with `requirement_id` and `include_body` for each requirement, then `dpm_list_criterion_approach` with `criterion_id` for each criterion.
+
 ### Roster
 
 `dpm_list_agent` with `include_body`, for **Perspectives** in Sections 4 and 5. The traits are

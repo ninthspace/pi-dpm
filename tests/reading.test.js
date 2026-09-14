@@ -50,7 +50,7 @@ function chain(call) {
     spec_id: spec.id,
     label: 'FR13',
     class: 'functional',
-    text: 'Query tools return summaries rather than whole bodies unless a body is requested',
+    text: 'Query tools return summaries rather than whole bodies unless a body is explicitly requested',
     position: 0,
   });
   const acceptance_criterion = call.create_acceptance_criterion({
@@ -199,9 +199,14 @@ function crowd(call, tools) {
   // `crowd` is in the text because `requirement` is an indexed table, which makes these fifty-one
   // rows the corpus `search` is bounded against as well as the ones `list_requirement`
   // pages. One word in one place, so the two tools are held to the same row set.
+  // The first also quotes every fragment the coverage crowd below binds to it, because
+  // `create_coverage` refuses a fragment its requirement's text does not contain.
   const requirements = spread(MANY).map((index) => call.create_requirement({
     spec_id: home.id, label: `FR${index}`, class: 'functional',
-    text: `requirement ${index} crowd`, position: index,
+    text: index === 0
+      ? `requirement 0 crowd: ${spread(MANY).map((bound) => `fragment ${bound}`).join(', ')}`
+      : `requirement ${index} crowd`,
+    position: index,
   }));
 
   const stories = spread(MANY).map((index) => call.create_story({

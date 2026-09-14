@@ -37,19 +37,24 @@ function surface(t) {
 }
 
 /**
- * A requirement holding two quotable clauses and one fragment that appears nowhere in it.
+ * A requirement quoting both fragments, and `amend` to delete the broken one.
  *
- * One fixture per database, because `boundCoverage` allocates a spec by number. The sound
- * fragment is a verbatim substring of the requirement's text and the broken one is not, which is
- * the whole difference the two entries turn on.
+ * One fixture per database, because `boundCoverage` allocates a spec by number. After `amend` the
+ * sound fragment is a verbatim substring of the requirement's text and the broken one is not, which
+ * is the whole difference the two entries turn on. Bound before the amendment, because
+ * `create_coverage` refuses a fragment its requirement does not contain.
  */
 const SOUND = 'a retirement somebody made while the binding was sound';
 const BROKEN = 'a clause the amendment deleted';
+const AMENDED = `The register names ${SOUND}, and entry 9 names the rest.`;
 
-const fixture = (db) => bound(db, {
-  fragment: BROKEN,
-  requirement: `The register names ${SOUND}, and entry 9 names the rest.`,
-});
+const fixture = (db) => {
+  const built = bound(db, { fragment: BROKEN, requirement: `${AMENDED} It quotes ${BROKEN}.` });
+  const amend = () => db.prepare('UPDATE requirement SET text = ? WHERE id = ?')
+    .run(AMENDED, built.requirement.id);
+
+  return { ...built, amend };
+};
 
 /** The binding ids one register entry names. Shared, because story 1's suite asks the same way. */
 const named = (db, entry) => namedBy(db, entry);
@@ -85,11 +90,12 @@ test('a binding retired while sound is named by an advisory entry [integration]'
 
 test('a broken live binding is entry 9\'s and not entry 14\'s [integration]', (t) => {
   const { db, call } = surface(t);
-  const { binding } = fixture(db);
+  const { binding, amend } = fixture(db);
 
   const live = call.create_coverage(binding());
   const retired = call.create_coverage({ ...binding(), spec_fragment: SOUND, position: 1 });
 
+  amend();
   call.retire_coverage({ id: retired.id, reason: 'the criterion was folded into another story' });
 
   // One database, two rows, two entries — which is what "separate" means. Asserted as two whole
@@ -104,9 +110,10 @@ test('a broken live binding is entry 9\'s and not entry 14\'s [integration]', (t
 
 test('entry 14 does not name a binding retired while its fragment no longer matched [integration]', (t) => {
   const { db, call } = surface(t);
-  const { binding } = fixture(db);
+  const { binding, amend } = fixture(db);
   const row = call.create_coverage(binding());
 
+  amend();
   call.retire_coverage({ id: row.id, reason: 'the pivot deleted the clause this quoted' });
 
   assert.deepEqual(named(db, 14), [], 'a broken binding retired is entry 9 answered, not a judgement');

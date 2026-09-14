@@ -301,22 +301,19 @@ test('`epics` can quote a requirement verbatim and reach its criteria through co
   assert.equal('spec_fragment' in blind, false);
   assert.equal('text' in call.read_story_criterion({ id: bound.story_criterion_id }), false);
 
-  // **And the cost of guessing the fragment rather than reading it.** A non-substring is not
-  // refused at the write — it is stored, and the integrity register reports it afterwards, which is
-  // why Step 1 asks for the text rather than leaving Step 3d to invent one.
-  const guessed = call.create_coverage({
+  // **And the cost of guessing the fragment rather than reading it.** A non-substring is refused at
+  // the write, naming the requirement it is not in, which is why Step 1 asks for the text rather
+  // than leaving Step 3d to invent one.
+  assert.throws(() => call.create_coverage({
     requirement_id: requirement.id,
     spec_fragment: 'bounded reads are raisable',
     story_criterion_id: bound.story_criterion_id,
     position: 1,
-  });
-
-  assert.ok(guessed.id, 'the write was refused, so the register has nothing to report');
+  }), /spec_fragment is not in FR13's text/, 'a guessed fragment was stored');
 
   const broken = call.check_integrity({}).entries
     .filter((entry) => !entry.held)
     .flatMap((entry) => entry.rows.map((failed) => ({ entry: entry.entry, id: failed.id })));
 
-  assert.deepEqual(broken, [{ entry: 9, id: guessed.id }],
-    'a fragment that is not a substring of its requirement went unreported');
+  assert.deepEqual(broken, [], 'the refused write left a row behind for the register to find');
 });

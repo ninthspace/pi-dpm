@@ -295,11 +295,15 @@ export const CLASSIFICATION = new Map(Object.entries({
 
   // --- epics ------------------------------------------------------------------------------------
   'epics · list_requirement · Step 1: Read the source':
-    [true, 'Step 3d binds each coverage row with a **verbatim fragment of that requirement\'s own text**, and the integrity check refuses a fragment that is not a substring'],
+    [true, 'Step 3d binds each coverage row with a **verbatim fragment of that requirement\'s own text**, and `create_coverage` refuses a fragment that is not a substring'],
   'epics · list_document_section · Step 1: Read the source':
     [true, 'the scope boundary and the integration boundaries are what those sections say, not that they exist'],
   'epics · list_acceptance_criterion · Acceptance criteria':
     [true, 'every `must_not` criterion is given a story criterion with the same text — the file calls it transcription'],
+  'epics · list_task · Step 3b: Tasks within stories':
+    [false, 'the read-back compares titles with the ones approved, and a title is not withheld'],
+  'epics · list_acceptance_criterion · Step 4: Confirm':
+    [true, 'each spec criterion is matched to a covering criterion by what it says, which is its `text`'],
   'epics · list_requirement · Step 4: Confirm':
     [true, 'the reachability gate asks whether a requirement **names an action a user takes**, which cannot be read off `moscow` and `class`'],
   'epics · read_story_criterion · Step 4: Confirm':
@@ -312,6 +316,12 @@ export const CLASSIFICATION = new Map(Object.entries({
     [true, 'the gap check reports the criteria whose `accounted_for` is false, and names each by its `text`'],
   'epics · list_story_criterion · Step 4: Confirm #2':
     [true, 'the same read-back, and the criteria the reachability gate weighs come through it'],
+  'epics · list_story_criterion · Session':
+    [false, 'a resume asks only whether a story already has criteria, which is whether the list is empty'],
+  'epics · list_task · Session':
+    [false, 'a resume asks only whether a story already has tasks, which is whether the list is empty'],
+  'epics · list_coverage · Session':
+    [false, 'a resume asks only whether a criterion is already bound, and follows `story_criterion_id`'],
 
   // --- inspect ----------------------------------------------------------------------------------
   // Seven sites, none of which needs a body — and the sweep flagged every one.
@@ -434,6 +444,16 @@ export const CLASSIFICATION = new Map(Object.entries({
     [true, 'the same render, and a criterion is its text'],
   'spec · list_document_section · Section 7: Review':
     [true, 'the same render, and a section is its body'],
+  'spec · list_document_section · Session':
+    [false, 'a resume asks whether the recap\'s sections are written, which their headings answer'],
+  'spec · list_requirement · Session':
+    [true, 'a resume tells a written requirement from a proposed one by its text'],
+  'spec · list_adr_option · Session':
+    [false, 'a resume asks whether an ADR already has options, which is whether the list is empty'],
+  'spec · list_document_section · Session #2':
+    [false, 'a resume asks whether the scope and integration sections are written, which their headings answer'],
+  'spec · list_acceptance_criterion · Session':
+    [true, 'a resume tells a written criterion from a proposed one by its text'],
 
   // --- status -----------------------------------------------------------------------------------
   'status · list_task · Phase 1: The planning rows':

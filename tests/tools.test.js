@@ -421,6 +421,32 @@ test('verification is set as a pair, and the hash is the servers rather than the
   assert.notEqual(again.binding_hash, expected, 'the ✓ came back over text that had moved');
 });
 
+// A local model binding a spec sent a fragment to the neighbouring requirement's id, and a gap check
+// counting rows then called both requirements covered. The refusal names where the text is.
+test('create_coverage refuses a fragment its requirement does not contain, naming the one that does', (t) => {
+  const { call } = surface(t);
+  const { spec, requirement, story_criterion } = chain(call);
+  const other = call.create_requirement({
+    spec_id: spec.id, label: 'FR2', class: 'functional', text: 'A grand total is printed last', position: 1,
+  });
+
+  const misfiled = refused(() => call.create_coverage({
+    requirement_id: requirement.id, spec_fragment: 'A grand total is printed last',
+    story_criterion_id: story_criterion.id, position: 1,
+  }));
+
+  assert.match(misfiled.message, new RegExp(`not in FR1's text; it is FR2's \\(${other.id}\\)`));
+
+  const invented = refused(() => call.create_coverage({
+    requirement_id: requirement.id, spec_fragment: 'is a database',
+    story_criterion_id: story_criterion.id, position: 1,
+  }));
+
+  assert.match(invented.message, /not in FR1's text; no requirement of this spec contains it/);
+  assert.equal(call.list_coverage({ requirement_id: requirement.id }).items.length, 1,
+    'a refused write left a row behind');
+});
+
 test('every create tool enforces every argument it declares required', (t) => {
   const { call } = surface(t);
   const { spec, requirement, epic, story, story_criterion } = chain(call);
@@ -441,7 +467,7 @@ test('every create tool enforces every argument it declares required', (t) => {
     create_story: { epic_id: epic.id, number: 50, title: 'V', position: 50 },
     create_task: { story_id: story.id, number: 50, title: 'V', position: 50 },
     create_coverage: {
-      requirement_id: requirement.id, spec_fragment: 'a distinct fragment',
+      requirement_id: requirement.id, spec_fragment: 'artefact type',
       story_criterion_id: story_criterion.id, position: 50 },
   };
 

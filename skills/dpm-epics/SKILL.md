@@ -40,7 +40,21 @@ graph. Say so when that is what happened, rather than presenting a thinner resul
 Follow the shared **Session Startup** procedure with `skill: 'dpm:epics'`.
 
 **Which epic the production loop reached belongs in `state`**, because Steps 3 to 3d run once per
-epic and a run resumed mid-loop has to know which ones are already written.
+epic and a run resumed mid-loop has to know where to look.
+
+**On a resume, the rows say what is written** — the Session Startup rule. The loop is where it
+bites: a flag saying an epic's stories are not written may sit over stories that are. Before
+proposing anything for an epic, read what it already has, in this order, and resume at the first
+step whose rows are missing:
+
+1. `dpm_list_story` with the epic's id — Step 3's stories;
+2. `dpm_list_story_criterion` with `story_id` for **each** of those stories — Step 3's criteria;
+3. `dpm_list_story_criterion_approach` with `story_criterion_id` for each criterion — Step 3's tags;
+4. `dpm_list_task` with `story_id` for each story — Step 3b;
+5. `dpm_list_coverage` with `story_criterion_id` for each criterion — Step 3d.
+
+A step whose rows exist for some stories and not others resumes at the first story without them.
+Never propose a row the list has just returned.
 
 ### Library
 
@@ -92,8 +106,8 @@ on than the bound does. `text` on a requirement and `body` on a section are with
 for, so without it every requirement arrives as a label with a class and a band and no statement of
 what it requires. Step 3d then has to bind each coverage row to a **verbatim fragment of that
 requirement's own text**, which there is no way to produce from a label. A fragment that is not a
-substring of its requirement is not refused at the write — it is stored, and the integrity register
-reports it afterwards as a broken invariant, at a distance from the step that caused it.
+substring of its requirement is refused at the write, so a guess costs a refused call and a second
+read.
 
 ### Step 2: Identify epics
 
@@ -258,6 +272,11 @@ to automate and no testing task.
 1. **Render the tasks per story in the message body**, in the order they will be done.
 2. **Then gate** with the `question` tool: `Approve` / `Request changes` / `Stop`.
 
+**Read each story's tasks back before the next story.** After writing its approved tasks,
+`dpm_list_task` with its `story_id`, and compare the titles with the ones approved. A title approved
+and not listed was never written — write it before moving on. A run of writes can lose one without
+an error, and nothing later counts tasks against what was approved.
+
 ### Step 3c: Integration testing story (when warranted)
 
 After the epic's implementation stories exist, assess whether it warrants a story that verifies
@@ -292,8 +311,12 @@ For each requirement this epic delivers, and each story criterion delivering par
 **Refuse to attach a criterion you cannot trace to spec text.** If no verbatim fragment of the
 requirement supports the criterion, the binding is a guess: say which criterion and which requirement,
 and either find the text or change the criterion. A fragment appearing nowhere in its requirement is
-also refused by the integrity check, so a guess made here surfaces later as a broken database rather
-than as a decision.
+refused by `dpm_create_coverage`.
+
+**Read the refusal before retrying.** When another requirement's text holds the fragment, the
+refusal names it, and that is a binding sent to the wrong requirement's id: bind it to the one named.
+Never trim the fragment until the first requirement accepts it — that keeps the wrong id and quotes
+a clause it does not own.
 
 **Quote the clause that carries the obligation.** A requirement often opens with wording that
 positions it — *"Building on the work above,"*, *"As with the other stores,"* — and states what it
@@ -361,6 +384,16 @@ that constrains the story where no requirement does. A criterion with neither is
 in the report, named by its `text` since it has no title; one with a warrant is finished work and
 does not, and a run that counted coverage rows instead would call it a gap on every breakdown that
 recorded one.
+
+**A requirement is covered only as far as its spec criteria are.** A row says one clause of it is
+delivered, not every clause: a requirement asking for a single pass *and* a time limit is bound by a
+row on the single pass while the time limit reaches no story. So for each **must have**,
+`dpm_list_acceptance_criterion` with `requirement_id` and `include_body`, and find each spec
+criterion's counterpart among the covering criteria read above. A spec criterion none of them
+carries is a gap on the same terms as an uncovered requirement.
+
+**Then `dpm_check_integrity`.** The gap check reads what the rows say; this reads whether they hold.
+Report each violation not marked `advisory` with the rows it names, and treat it as a gap.
 
 Resolve each gap before finishing: add it to an existing epic, raise a story for it, or defer it
 with a stated reason. Should-have requirements with no cover are warnings rather than blockers.

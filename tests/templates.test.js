@@ -284,7 +284,10 @@ test('a coverage matrix renders its epic\'s rows and no other epic\'s', (t) => {
   const otherCriterion = call.create_story_criterion({
     story_id: otherStory.id, text: 'A renumber renames the file', polarity: 'must', position: 0,
   });
-  const requirement = db.prepare('SELECT id FROM requirement LIMIT 1').get();
+  const requirement = call.create_requirement({
+    spec_id: built.spec.id, label: 'FR11', class: 'functional',
+    text: 'A renumber renames its projection file.', position: 1,
+  });
 
   call.create_coverage({
     requirement_id: requirement.id, spec_fragment: 'renames its projection file',

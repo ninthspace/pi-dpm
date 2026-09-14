@@ -26,6 +26,8 @@
  * server-supplied clock, same refusal to retire twice.
  */
 
+import type { DatabaseSync } from 'node:sqlite';
+
 import type { Binding } from '../../coverage/binding.ts';
 import type { Context, Tool } from '../convention.ts';
 
@@ -43,6 +45,37 @@ const BINDING = {
   },
   story_criterion_id: { type: 'string', minLength: 1 },
 };
+
+const OWN_TEXT = 'SELECT label, spec_id, instr(text, ?) > 0 AS quoted FROM requirement WHERE id = ?';
+
+// Same `instr` as integrity register entry 9, so the write refuses exactly what the check reports.
+const QUOTED_BY = `
+  SELECT id, label FROM requirement
+   WHERE spec_id = ? AND instr(text, ?) > 0
+   ORDER BY position
+`;
+
+/**
+ * Refuses a fragment its requirement's text does not contain, naming where the text actually is.
+ *
+ * **Refused at the write, where it was only reported afterwards.** A local model binding a spec
+ * wrote five rows whose fragment was the neighbouring requirement's text under the wrong id, and a
+ * gap check that counted rows per requirement then called both requirements covered. Register entry
+ * 9 caught every one, but only for a run that called it; the write is the one place every run passes.
+ * An unknown requirement id is left to the foreign key, which names it.
+ */
+function refuseStrayFragment(db: DatabaseSync, args: Record<string, unknown>): void {
+  const own = db.prepare(OWN_TEXT).get(args.spec_fragment as string, args.requirement_id as string) as
+    { label: string; spec_id: string; quoted: number } | undefined;
+  if (!own || own.quoted) return;
+
+  const elsewhere = db.prepare(QUOTED_BY).all(own.spec_id, args.spec_fragment as string) as
+    { id: string; label: string }[];
+  const hint = elsewhere.length > 0
+    ? `it is ${elsewhere.map((r) => `${r.label}'s (${r.id})`).join(' and ')} — bind it there`
+    : 'no requirement of this spec contains it — quote the requirement verbatim';
+  throw new ToolError(`create_coverage: spec_fragment is not in ${own.label}'s text; ${hint}`);
+}
 
 const STATE = {
   position: { type: 'integer', minimum: 0, description: 'Display order only; not identity' },
@@ -74,20 +107,23 @@ export function coverageTools({ db, now, newId }: Context): Tool[] {
         properties: { ...BINDING, ...STATE },
         required: ['requirement_id', 'spec_fragment', 'story_criterion_id', 'position'],
       },
-      handler: (args) => insert(db, 'coverage', {
-        id: newId(),
-        requirement_id: args.requirement_id,
-        spec_fragment: args.spec_fragment,
-        story_criterion_id: args.story_criterion_id,
-        position: args.position,
-        verified_at: args.verified_at ?? null,
-        // Computed from the arguments rather than read back, because the row is not there yet —
-        // and the criterion is, which is the half that has to be looked up either way. Nullish,
-        // so a row created explicitly unverified gets no hash: a `binding_hash` beside a NULL
-        // `verified_at` is a binding recorded for a verification that was never made, which is
-        // the state FR21's decay triggers exist to prevent arising the other way round.
-        binding_hash: args.verified_at == null ? null : bindingHash(db, args as Binding),
-      }, 'create_coverage'),
+      handler: (args) => {
+        refuseStrayFragment(db, args);
+        return insert(db, 'coverage', {
+          id: newId(),
+          requirement_id: args.requirement_id,
+          spec_fragment: args.spec_fragment,
+          story_criterion_id: args.story_criterion_id,
+          position: args.position,
+          verified_at: args.verified_at ?? null,
+          // Computed from the arguments rather than read back, because the row is not there yet —
+          // and the criterion is, which is the half that has to be looked up either way. Nullish,
+          // so a row created explicitly unverified gets no hash: a `binding_hash` beside a NULL
+          // `verified_at` is a binding recorded for a verification that was never made, which is
+          // the state FR21's decay triggers exist to prevent arising the other way round.
+          binding_hash: args.verified_at == null ? null : bindingHash(db, args as Binding),
+        }, 'create_coverage');
+      },
     }),
 
     defineTool({

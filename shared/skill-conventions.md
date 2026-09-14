@@ -22,6 +22,13 @@ Every skill's run is one `session` row, and nothing else on disk records where i
 As each step closes, `dpm_update_session` moves `phase` on and carries the accumulated
 `state` — a blob the skill defines and dpm does not interpret.
 
+**On a resume, the rows say what is written, and `phase` and `state` say where to look.** A run can
+stop after a write and before the `dpm_update_session` that records it, so both may lag the rows.
+Before a resumed step writes anything, list the rows that step writes, under the parent it writes
+them to, and propose only what is missing — never a row a list has just returned. What was settled
+in conversation and not yet written, such as a finding held for a later step, is the part only
+`state` holds, and that part is read from it.
+
 **When the skill's phase ids are listed at the start of the run, `phase` is one of them and nothing
 else** — the id of the step about to start, not its heading, and `complete` once the run is
 finished. A value outside the list is refused with the list, and nothing is recorded until the call
