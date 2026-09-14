@@ -81,7 +81,9 @@ export function criterionTools({ db, newId }: Context, {
       type: 'string',
       enum: POLARITY,
       default: 'must',
-      description: "'must_not' is a type here, not the words 'must NOT' at the front of the text",
+      description: "'must_not' is a type here, and the document writes 'must NOT — ' before the text, so "
+        + "the text names the rejected outcome as though it happened: 'a raw stack trace reaches the user', "
+        + "not 'the tool does not print a stack trace' and not 'must NOT print a stack trace'",
     },
     position: { type: 'integer', minimum: 0 },
     ...extra,

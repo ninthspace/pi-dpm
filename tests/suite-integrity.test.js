@@ -167,6 +167,7 @@ const ADDED = [
   'pi-gate.test.js', //                pi port phase 1 — `question`, in the conventions' shape, answered over RPC and refused without a UI
   'pi-phases.test.js', //              pi port phase 1 — each skill's steps and levels, the phase guard, the level on the next request
   'pi-skills.test.js', //              pi port phase 1 — the registry probe, both routes to a skill, parity with the allow-list
+  'pi-written.test.js', //             pi port — what a write hands back to the model, less what it was sent
   'plugin-entry.test.js', //           01-02 story 1 — registration, the profile seam, the root
   'plugin-reload.test.js', //          01-02 story 5 — a reload leaves one of everything
   'production-restrictions.test.js', // 01-05 story 3 — nothing contacted, no port bound, no host mechanism

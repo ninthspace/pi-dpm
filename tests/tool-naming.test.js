@@ -146,6 +146,19 @@ const REWORDED = [
     // `cpm:do` into a row every dpm skill then reads back.
     why: 'it named CPM\'s skill prefix, and the model passing it is choosing dpm\'s',
   },
+  {
+    // All four criterion tools take the same `fields` object in `criterionTools`.
+    tools: ['create_acceptance_criterion', 'create_story_criterion', 'update_acceptance_criterion', 'update_story_criterion'],
+    at: ['inputSchema', 'properties', 'polarity', 'description'],
+    was: "'must_not' is a type here, not the words 'must NOT' at the front of the text",
+    now: "'must_not' is a type here, and the document writes 'must NOT — ' before the text, so the text "
+      + "names the rejected outcome as though it happened: 'a raw stack trace reaches the user', not 'the "
+      + "tool does not print a stack trace' and not 'must NOT print a stack trace'",
+    // v0.7.0's says only what the text must not start with. Three MTPLX specs each followed it and
+    // still rendered wrongly: two wrote "tally does not print…", a double negative under the
+    // prefix, and one cut "must not" out of the middle, leaving "tally print a traceback".
+    why: 'it forbade the prefix without saying what the text is, and specs rendered as double negatives',
+  },
 ];
 
 /** The value at a path, or `undefined` where the path does not lead anywhere. */

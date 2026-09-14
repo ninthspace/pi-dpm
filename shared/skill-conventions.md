@@ -3,37 +3,9 @@
 Procedures used by several dpm skills. A skill that says "follow the shared **X** procedure" means
 the section of that name below.
 
-**Ask for this document when a skill references it** — `dpm_read_shared_document` with
-`name: "skill-conventions"`. dpm ships no session hook, so nothing injects these sections; a skill
-calls for them, which costs one tool call per run rather than seven sections repeated in
-twenty-two files.
-
-**A tool call rather than a file read, and the difference is the point.** A file read of a path
-outside the project is rejected by one host and unreachable on the other, and it fails by returning
-nothing — so a skill would open without its conventions and nothing anywhere would say so. A tool
-call reaches the same bytes through the one boundary both hosts share, and when it cannot, it says
-so out loud.
-
-**What earns a place here.** A section belongs in this file when several skills reference it. One
-referenced by a single skill belongs in that skill; one referenced by none is documentation rather
-than context, and belongs wherever the project keeps its documentation.
-
-**Nothing here describes what a tool already does.** Prose restating a tool's behaviour is a second
-specification of it, and the two drift — the prose being the copy that no test holds to account.
-Numbering is the clearest case: `dpm_create_epic` allocates, and a paragraph here explaining
-how would be a rule nothing enforces.
-
-**A procedure carrying judgement the tool does not is a different thing, and it belongs here.**
-Which sessions are stale, how many observations to select and on what, whether a retro's lesson is
-presented before it is used — none of that is in a tool, and all of it has to be the same in every
-skill or the corpus behaves differently depending on which one a project happens to run. The test is
-not "does this mention a tool" but "would two skills implementing it separately agree". **Perspectives**
-has always been here on those terms, and the three startup procedures below joined it for the same
-reason: they were near-verbatim in ten files, which is ten places for one of them to drift.
-
-**Where a skill's own judgement lives.** Each procedure names the small part that is genuinely
-per-skill — the scope keyword, what the session `state` must hold, what an incorporated lesson
-changes — and the skill states that part and nothing else.
+A skill reads this document with `dpm_read_shared_document` and `name: "skill-conventions"`.
+Each procedure names the small part that is genuinely per-skill — the scope keyword, what the
+session `state` must hold, what an incorporated lesson changes — and the skill states that part.
 
 ## Session Startup
 
@@ -57,16 +29,10 @@ is made again. Move it at every step, including steps whose work looks like the 
 answered gate is reminded of the phase last recorded, and a phase left behind points that reminder at
 a step the run has already finished.
 
-**Two things about that call are refused rather than corrected, and both are easy to get wrong.**
-`id` is its only required parameter — the session's own id, the one step 2 or step 3 established —
-and a call that carries `phase` and `state` without it is rejected outright. And **`state` is a
-string**: a JSON document you serialise yourself, not an object handed to the tool. "A blob" in
-the parameter's own description reads like an object and is not one. Both hold for
-`dpm_create_session` as well, which requires the same `id` and takes `state` the same way.
-
-Either mistake comes back as `MCP error -32602: Invalid params`, naming neither the missing
-parameter nor the wrong type — so a run that guesses here spends a round trip per guess, and the
-guess is not the sort that gets better on the second attempt.
+**Two things about that call are refused, and both are easy to get wrong.** `id` is required — the
+session's own id, the one step 2 or step 3 established. And **`state` is a string**: a JSON document
+you serialise yourself, not an object, whatever "a blob" in its description suggests. Both hold for
+`dpm_create_session` as well.
 
 **What `state` holds is the per-skill part, and it is the part worth stating.** It is the run's
 memory: what a step settled goes in as it is settled, because a step summarised only in the
@@ -126,13 +92,8 @@ labels, and long content is truncated there.
 2. **Then call `question`**, carrying only the decision — "Approve" / "Request changes" / "Stop",
    or "Choose A / B / C".
 
-**Step 1 is the one that gets dropped, and dropping it has no error in it.** A gate that arrives
-with nothing above it looks, in the transcript, exactly like a gate that arrives after a draft: the
-question is well-formed, the options are right, and the run reads as though it is waiting for an
-answer. It is waiting for the user to approve something they have not been shown — and on the
-skills that write nothing before approval, there is no row to go and read instead. So the render is
-numbered as its own step wherever a gate appears, rather than tucked into the clause that names the
-gate, because a clause is what a run under pressure skips.
+**Step 1 is the one that gets dropped**, and a gate with nothing above it asks the user to approve
+something they have not been shown.
 
 **A gate that is only a selection still gets a sentence.** Offering the specs in the project, or
 asking whether to sweep evenly or focus, puts every choice in the `options` already; there is no
@@ -272,25 +233,16 @@ row you already hold. That pair is what a person can read back to you, name in a
 in the rendered tree, and every list or read tool returns the reference on the row beside the columns
 it was asked for — so the naming costs the run nothing it has not already paid for.
 
-The reference goes in as the row gave it, never written out from memory: a number typed into a
-sentence is correct on the day it is typed, which is the failure Cross-References describes at
-length and the reason this section carries no worked example of one.
-
-**The id keeps the two places it works**: a tool argument and a foreign key. Both are read by
-software that has the row in hand, and neither is read aloud.
+The reference goes in as the row gave it, never written out from memory. **The id keeps the two
+places it works**: a tool argument and a foreign key.
 
 **Where a reference is `null`, say the title and the kind and say the document has no reference
-yet.** A row comes back unnamed when it is numbered `none` or when its parentage reaches no
-root-numbered ancestor — legitimate states, not failures — and the honest sentence is *the untitled
-scratch document, which has no reference yet*. Reaching for the id instead answers a question the
-person did not ask, in a string they cannot use.
+yet** — *the untitled scratch document, which has no reference yet*. A row numbered `none`, or one
+with no root-numbered ancestor, legitimately has none.
 
-**This governs what is said; Cross-References governs what is stored.** They are separate because
-the answers differ: a sentence spoken now is read once and a sentence written into a body is
-re-rendered for as long as the row lives. So a document named inside stored prose — a body, a plan,
-a decision, an observation — is written `{{ref:<id>}}` and resolved at render, for the reasons that
-section gives. Speaking a reference and storing a marker are the same rule under one derivation:
-both end at the identifier the projection computes.
+**This governs what is said; Cross-References governs what is stored.** A document named inside
+stored prose — a body, a plan, a decision, an observation — is written `{{ref:<id>}}`. It is the
+same rule: both end at the identifier the projection computes.
 
 ## Artifact Publishing
 

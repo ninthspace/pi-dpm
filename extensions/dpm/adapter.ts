@@ -32,6 +32,38 @@ export const labelFor = (name: string): string => name
   .join(' ');
 
 /**
+ * What a write sends the model: the row it stored, less every column stored exactly as it was sent.
+ *
+ * **Every token a result carries is re-read on every later turn.** A run of `dpm-epics` makes about
+ * a hundred creates, and each one handed back the text, polarity and parent the call had just
+ * passed — about a fifth of what the tools returned, repeated for the rest of the run. The read-back
+ * `insert` does is kept for what it is for: a column the server filled, or stored differently from
+ * what was sent, is still in the result, and the model is not left guessing about the rest because
+ * `as_sent` names it. `id` always stays, being what the next call needs.
+ *
+ * `details` still carries the whole row; only the text the model reads is cut.
+ *
+ * @param value What the handler returned.
+ * @param params What the call sent.
+ */
+export function written(value: unknown, params: Record<string, unknown>): unknown {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return value;
+
+  const row = value as Record<string, unknown>;
+  // SQLite has no booleans, so `chosen: true` is stored as 1 and is still as sent.
+  const stored = (sent: unknown) => (typeof sent === 'boolean' ? Number(sent) : sent);
+  const asSent = Object.keys(row).filter((column) => column !== 'id'
+    && Object.hasOwn(params, column) && row[column] === stored(params[column]));
+
+  if (asSent.length === 0) return value;
+
+  return {
+    ...Object.fromEntries(Object.entries(row).filter(([column]) => !asSent.includes(column))),
+    as_sent: asSent,
+  };
+}
+
+/**
  * Register every advertised tool, dispatching each call to its live counterpart.
  *
  * **A handler's `ToolError` is left to throw (R2).** pi marks a result `isError` only when `execute`
@@ -65,8 +97,13 @@ export function register(
         if (!live) throw new Error(`${tool.name}: advertised but absent from the live registry`);
 
         const value = live.handler(params as object);
+        // Writes only: a read is sent ids and filters, which are not columns its result repeats.
+        const shown = (live as { mutates?: boolean }).mutates
+          ? written(value, params as Record<string, unknown>)
+          : value;
 
-        return { content: [{ type: 'text', text: JSON.stringify(value, null, 2) }], details: value };
+        // Unindented, for the reason `written` gives: the indentation was read again on every turn.
+        return { content: [{ type: 'text', text: JSON.stringify(shown) }], details: value };
       },
     });
   }

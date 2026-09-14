@@ -168,14 +168,28 @@ alongside any criterion about the response. Both halves are needed and neither s
 other.
 
 **A rejected behaviour is a criterion with `polarity: 'must_not'`** — a value on the row, not the
-words "must NOT" at the front of the text.
+words "must NOT" at the front of the text. The document writes "must NOT — " in front of it, so the
+text names the rejected outcome as though it happened: *a credential reaches a log line*, not *no
+credential is logged*, which would read as a double negative.
 
 **Carry every rejection the spec already states.** For each requirement this story delivers, read
 `dpm_list_acceptance_criterion` with `include_body` and give every criterion whose `polarity` is
-`must_not` a story criterion of its own with the same polarity and the same text — which is the
+`must_not` a story criterion of its own with the same polarity and the same boundary — which is the
 argument for `include_body`, there being nothing to transcribe from a row whose `text` was withheld.
 These are boundaries someone already argued for;
 propagating one is transcription, and dropping one is a decision nobody made.
+
+**Copy the spec's text unchanged when it already names the rejected outcome.** An older spec may
+state it as a denial instead — *tally does not print a stack trace* — and that text under the
+"must NOT — " prefix reads as a double negative. Rewrite it as the outcome, keeping every detail
+the spec gave:
+
+- *tally does not print a stack trace* becomes *tally prints a stack trace*;
+- a clause that only restates the denial is dropped rather than turned around with it. *An input
+  error does not give exit code 2, and a usage error does not give exit code 1 — the two error
+  classes are exclusive* becomes *an input error gives exit code 2, or a usage error gives exit
+  code 1*. Turned around, the last clause would say the classes are not exclusive, which is the
+  opposite of the spec.
 
 Where the story goes beyond what the spec rejects and touches authentication, session or credential
 handling, data mutation, or an external system, **propose** one or two further rejections for the

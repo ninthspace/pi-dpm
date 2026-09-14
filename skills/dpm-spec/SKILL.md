@@ -302,6 +302,13 @@ absence itself is not.
 behaviours this allows that you would reject?" A rejected behaviour is its own criterion with
 `polarity: 'must_not'` — a value on the row, not the words "must NOT" at the front of the text.
 
+**A must-not criterion's text names the rejected outcome as though it happened.** The spec document
+writes "must NOT — " in front of it, so the text supplies only what is rejected:
+
+- *a raw stack trace reaches the user* reads "must NOT — a raw stack trace reaches the user";
+- *tally does not print a stack trace* reads as a double negative;
+- *tally print a stack trace*, with "must not" cut from the middle, reads as neither.
+
 Each criterion is `dpm_create_acceptance_criterion` under its requirement, and each approach is
 `dpm_create_criterion_approach` naming the criterion and the tag. A criterion verified two ways
 carries two of them.
