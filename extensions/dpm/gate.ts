@@ -34,10 +34,24 @@
  * ask for the render first, but a model with reasoning on can write its whole draft into the think
  * block and call `question` with no text at all. Gates 7, 8 and 18 of the first MTPLX `/dpm-spec`
  * run did exactly that, and each was approved without the user ever seeing the draft. So the
- * `tool_call` hook refuses the call when no assistant text has been shown since the last answered
- * gate or the user's last message. Any text is enough: the check catches a gate with nothing above
- * it, and does not judge how much is there. The cost is the conventions' exception for a
- * selection-only gate, which under pi needs a sentence of framing.
+ * `tool_call` hook refuses the call when the message calling it has no text. The cost is the
+ * conventions' exception for a selection-only gate, which under pi needs a sentence of framing.
+ *
+ * **A gate asking for approval needs the draft itself, not a sentence about it.** Gates 4 and 5 of
+ * the resumed seventh MTPLX epics run had text — "I'll draft story 2's criteria from the
+ * requirement's language…", 468 and 272 characters — and no criteria and no tags. Both were approved
+ * unseen. Across the 45 gates of the sixth and seventh epics runs, those two are the only ones whose
+ * render held neither a list item nor a table row; every draft the user did see had one or the other.
+ * So a gate with an option whose label starts "Approve" is refused unless its message has one. A
+ * selection keeps its one line of framing, since its choices are the options.
+ *
+ * **A decision already approved is not asked again before anything is written.** The same run then
+ * asked "Story 2 criteria" seven times in a row, each approved and none written: its replayed
+ * reasoning had invented a user message saying story 1's criteria were approved, and every turn read
+ * the newest answer as that one. The session's history was all there; the model misread it. So once
+ * a question is answered with its first option — the recommended one, which is what the skills put
+ * first — the same `header` is refused until a write lands, and the refusal names the answer. An
+ * answer asking for changes, or one the user typed, leaves the header free to be asked again.
  */
 
 import type { ExtensionAPI, ExtensionUIContext, ToolDefinition } from '@earendil-works/pi-coding-agent';
@@ -74,6 +88,32 @@ export const UNRENDERED = `${GATE}: the message calling ${GATE} has no text, so 
   + `${GATE} — not in reasoning, and not only in an earlier message — then call ${GATE} again. A gate `
   + 'straight after another gate or after writes renders its own draft too: a draft worked out in reasoning '
   + 'is not shown until it is copied into the reply.';
+
+/** What the model is told when a gate asking for approval has no draft in its message. */
+export const UNLISTED = `${GATE}: this gate asks for approval, and the message calling it has no draft in it — no `
+  + 'list item and no table row, only prose about the draft. Put the items being approved in the reply text '
+  + `of this message, each a list item or a table row, then call ${GATE} again.`;
+
+/**
+ * What the model is told when it asks a decision already approved, with nothing written since.
+ *
+ * @param header The question's header, which is what identifies a decision across gates.
+ * @param gate Which answered gate of this session approved it.
+ * @param answer The label the user chose.
+ * @returns {string}
+ */
+export const repeated = (header: string, gate: number, answer: string): string =>
+  `${GATE}: "${header}" was answered at gate ${gate} of this session — "${answer}" — and nothing has been `
+  + 'written since, so it is not asked again. Carry that answer out: write what it approved, then go on to '
+  + 'the next step.';
+
+/** Whether a question asks for approval: an option whose label starts "Approve". */
+export const asksApproval = (question: { readonly options?: readonly GateOption[] }): boolean =>
+  (Array.isArray(question.options) ? question.options : []).some((option) => /^\s*approve\b/i.test(option?.label ?? ''));
+
+/** Whether a render holds a draft's items: a list item or a table row, each on a line of its own. */
+export const listsDraft = (text: string): boolean =>
+  /^\s*(?:[-*+]|\d+[.)])\s+\S/m.test(text) || /^\s*\|.*\|\s*$/m.test(text);
 
 /** A session entry, as far as the guard reads one. */
 type BranchEntry = {
@@ -293,17 +333,45 @@ const block = (theme: Theme, rows: ReadonlyArray<readonly [Colour, string]>): Co
  * `executionMode: 'sequential'` because two gates open at once would race for the same dialog.
  *
  * @param pi
+ * @param writes The tools, by registered name, whose success spends the approvals before it.
  */
-export function registerGate(pi: ExtensionAPI): void {
-  // Blocked before any dialog opens, so a gate with no text in its own message never reaches the
-  // user. pi brings the session up to date through the calling message before this runs.
+export function registerGate(pi: ExtensionAPI, writes: ReadonlySet<string> = new Set()): void {
+  let answered = 0;
+  const approved = new Map<string, { readonly gate: number; readonly answer: string }>();
+
+  // Both belong to the session they were counted in, as the handoff's state does.
+  pi.on('session_start', () => {
+    answered = 0;
+    approved.clear();
+  });
+
+  // Blocked before any dialog opens, so none of these reaches the user. pi brings the session up to
+  // date through the calling message before this runs.
   pi.on('tool_call', (event, ctx) => {
     if (event.toolName !== GATE) return undefined;
     const branch = ctx.sessionManager.getBranch() as unknown as readonly BranchEntry[];
+    const rendered = renderedWithGate(branch, event.toolCallId);
 
-    if (renderedWithGate(branch, event.toolCallId) !== '') return undefined;
+    if (rendered === '') return { block: true, reason: UNRENDERED };
 
-    return { block: true, reason: UNRENDERED };
+    const input = (event.input as { questions?: unknown }).questions;
+    const questions = (Array.isArray(input) ? input : []) as Partial<GateQuestion>[];
+
+    if (questions.some(asksApproval) && !listsDraft(rendered)) return { block: true, reason: UNLISTED };
+
+    for (const question of questions) {
+      const earlier = question.header === undefined ? undefined : approved.get(question.header);
+
+      if (earlier) return { block: true, reason: repeated(question.header!, earlier.gate, earlier.answer) };
+    }
+
+    return undefined;
+  });
+
+  pi.on('tool_result', (event) => {
+    if (!event.isError && writes.has(event.toolName)) approved.clear();
+
+    return undefined;
   });
 
   pi.registerTool({
@@ -329,6 +397,20 @@ export function registerGate(pi: ExtensionAPI): void {
             + 'Nothing was decided; do not proceed as though it were.');
         }
         answers.push({ header: question.header, question: question.question, answers: picked });
+      }
+
+      answered += 1;
+
+      // The first option answered alone is the approval the skills put first. Anything else — changes
+      // asked for, an answer typed, several chosen — leaves the decision open to be asked again.
+      for (const [index, question] of (params as { questions: GateQuestion[] }).questions.entries()) {
+        const picked = answers[index]!.answers;
+
+        if (!question.multiple && picked.length === 1 && picked[0] === question.options[0]?.label) {
+          approved.set(question.header, { gate: answered, answer: picked[0] });
+        } else {
+          approved.delete(question.header);
+        }
       }
 
       return { content: [{ type: 'text', text: answerText(answers) }], details: { answers } };

@@ -98,7 +98,9 @@ holds one epic, however many epics the spec needs.
 same bound and the same bodies, because the fragments it binds are quoted from requirement text this
 context has not seen, and it lists the spec's epics. It does not gate Steps 1 and 2 again, and it
 does not present the library, the decisions or the retro lessons the earlier run already weighed.
-The resume order under **Session** then finds where that epic's rows stop.
+**Nor does it move the phase back to `read`:** reading the source again is not Step 1 running again,
+and the phase stays the one the handoff recorded. The resume order under **Session** then finds where
+that epic's rows stop.
 
 Gate each step with the `question` tool, converging in one or two rounds. Where the user cannot decide
 after one clarification round, present a recommended structure and record the decision as
@@ -413,8 +415,11 @@ The bindings go to the user to judge, in two steps:
    `dpm_update_story_criterion` before moving on.
 
 **Once they approve, write the bindings, then read them back before the next epic or Step 4.** For
-each criterion of this epic, `dpm_list_coverage` with `story_criterion_id` and `include_body`, and
-compare what it returns with what was approved: every approved binding present, to the requirement
+each criterion of this epic, `dpm_list_coverage` with `story_criterion_id` and `include_body` —
+**every one of those calls in a single message**, not a message per criterion or two: each message
+is another turn over the whole context, and the seventh MTPLX epics run spent over twenty minutes
+reading one epic's sixteen bindings back that way. Then compare what they return with what was
+approved: every approved binding present, to the requirement
 and fragment approved, and nothing else live. Check each row's requirement by its
 `requirement_label`, which every coverage row carries, rather than by ids remembered from earlier calls: a
 row's fragment is already known to be in the requirement it names, so a label that matches the approval
@@ -444,10 +449,12 @@ a check answered from memory of it has the shape of a check without being one. T
   requirement does). It is the same field `dpm_list_story_criterion` returns.
   **There is no third way to be accounted for.** An unbound `must_not` criterion is a gap like any
   other — not finished work because its positive twin is bound, and not because the spec stated it.
-- `gaps` and `warnings` — both of the above as sentences, and `ok`, true only when `gaps` is empty.
+- `untagged_criteria` — every live story criterion with no approach tag. Step 3 tags every
+  criterion, so one without a tag is a tags gate approved and never written.
+- `gaps` and `warnings` — all of the above as sentences, and `ok`, true only when `gaps` is empty.
 - `must_have_criteria` — for each must-have in scope, its text, its spec criteria, and the story
   criteria covering it with the fragment each binding quotes.
-- `counts` — epics, stories, live story criteria, `must_not` criteria, warrants, tags, tasks, live
+- `counts` — epics, stories, live story criteria, `must_not` criteria, warrants, tags, untagged criteria, tasks, live
   coverage rows, coverage_story rows and dependency edges.
 
 **Report every entry of `gaps` and `warnings`.** None is dropped because an earlier step believed the

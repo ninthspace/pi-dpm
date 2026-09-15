@@ -12,8 +12,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
-  answerText, ask, choiceFor, DONE, GATE, HEADER_LIMIT, OWN_ANSWER, PARAMETERS, registerGate, renderedWithGate,
-  UNRENDERED, wrap,
+  answerText, ask, asksApproval, choiceFor, DONE, GATE, HEADER_LIMIT, listsDraft, OWN_ANSWER, PARAMETERS,
+  registerGate, renderedWithGate, repeated, UNLISTED, UNRENDERED, wrap,
 } from '../extensions/dpm/gate.ts';
 import {
   answers, callsTool, callsTools, limitFor, ROOT, runJson, runPrompt, scratchProject, scriptedModel, textOf, toolResults,
@@ -41,8 +41,8 @@ const PERSPECTIVES = {
   ],
 };
 
-/** The render a scripted model says before its gate, so the guard lets the gate through. */
-const RENDER = 'Here are the requirements being decided.';
+/** The render a scripted model says before its gate: text, with the list an approval gate needs. */
+const RENDER = 'Here are the requirements being decided:\n\n- FR1 — the requirement set is recorded as drafted.';
 
 /** Dialogs that answer from a script and record what they were shown. */
 function scripted(picks) {
@@ -203,6 +203,24 @@ test('a gate after another call in its own message reads that message, and only 
   assert.equal(renderedWithGate([user, calling('Draft G', 'update')], 'gate'), '');
 });
 
+test('a gate asking for approval needs its draft listed, and a selection does not', () => {
+  // Gates 4 and 5 of the resumed seventh MTPLX epics run: prose about a draft, and no draft.
+  assert.equal(listsDraft('I\'ll draft story 2\'s criteria from the requirement\'s language: the filter includes only '
+    + 'that month, and months display chronologically.'), false);
+  assert.equal(listsDraft('I\'ve identified four criteria with no assigned spec tags: c1 gets unit and feature tests.'), false);
+  // A hyphen or a pipe inside a sentence is not a list or a table.
+  assert.equal(listsDraft('Two shapes - one or two - were weighed, and a | b was not.'), false);
+
+  assert.equal(listsDraft('Story 2 criteria:\n\n1. the filter includes only that month'), true);
+  assert.equal(listsDraft('Tags:\n  - c1 · unit, feature'), true);
+  assert.equal(listsDraft('| # | criterion | tags |\n|---|---|---|\n| 1 | filter | unit |'), true);
+
+  assert.equal(asksApproval(APPROVE), true);
+  assert.equal(asksApproval(PERSPECTIVES), false);
+  assert.equal(asksApproval({ options: [{ label: 'Approved already', description: 'Not an approval to give.' }] }), false);
+  assert.equal(asksApproval({}), false, 'a question still streaming in has no options to read');
+});
+
 test('wrap keeps every line within the width, cutting a word that cannot fit', () => {
   assert.deepEqual(wrap('one two three', 7), ['one two', 'three']);
   assert.deepEqual(wrap('abcdefghij', 4), ['abcd', 'efgh', 'ij']);
@@ -293,6 +311,69 @@ test('through pi, a rendered gate after another call in the same message is aske
   assert.equal(listed.isError, false, textOf(listed.content));
   assert.equal(asked.isError, false, `a gate rendered in its own message was blocked: ${textOf(asked.content)}`);
   assert.equal(dialogs.length, 1, 'the gate did not reach the user');
+});
+
+test('through pi, an approval gate with prose and no draft is blocked, and a selection with one line is asked [integration]', limitFor(), async (t) => {
+  const SOURCE = {
+    question: 'Which spec should the breakdown run on?',
+    header: 'Source',
+    options: [{ label: 'Spec 01', description: 'Tally' }, { label: 'Spec 02', description: 'Ledger' }],
+  };
+  const model = await scriptedModel(t, [
+    callsTool(GATE, { questions: [SOURCE] }, 'Two specs are in the project.'),
+    callsTool(GATE, { questions: [APPROVE] }, 'I have drafted the requirements from the spec\'s language.'),
+    callsTool(GATE, { questions: [APPROVE] }, RENDER),
+    answers('done'),
+  ]);
+  const scratch = scratchProject(t, model.baseUrl);
+
+  const { messages, dialogs } = await runPrompt(scratch, 'Gate it.', { answer: (request) => ({ value: request.options[0] }) });
+  const [selected, blocked, asked] = toolResults(messages);
+
+  assert.equal(selected.isError, false, `a selection with a line of framing was refused: ${textOf(selected.content)}`);
+  assert.equal(blocked.isError, true, `an approval with no draft was let through: ${textOf(blocked.content)}`);
+  assert.ok(textOf(blocked.content).includes(UNLISTED), `the block did not say why: ${textOf(blocked.content)}`);
+  assert.equal(asked.isError, false, `the listed retry failed: ${textOf(asked.content)}`);
+  assert.equal(dialogs.length, 2, 'the approval with no draft reached the user');
+});
+
+test('through pi, a decision approved is not asked again until something is written [integration]', limitFor(), async (t) => {
+  const model = await scriptedModel(t, [
+    callsTool(GATE, { questions: [APPROVE] }, RENDER),
+    // The seventh MTPLX epics run: the same approval asked again, with nothing written between.
+    callsTool(GATE, { questions: [APPROVE] }, RENDER),
+    callsTool('dpm_create_spec', { slug: 'tally', title: 'Tally' }),
+    callsTool(GATE, { questions: [APPROVE] }, RENDER),
+    answers('done'),
+  ]);
+  const scratch = scratchProject(t, model.baseUrl);
+
+  const { messages, dialogs } = await runPrompt(scratch, 'Gate it.', { answer: (request) => ({ value: request.options[0] }) });
+  const [first, again, written, afterWrite] = toolResults(messages);
+
+  assert.equal(first.isError, false, textOf(first.content));
+  assert.equal(again.isError, true, `an approved decision was asked again: ${textOf(again.content)}`);
+  assert.equal(textOf(again.content), repeated(APPROVE.header, 1, APPROVE.options[0].label));
+  assert.equal(written.isError, false, textOf(written.content));
+  assert.equal(afterWrite.isError, false, `a write did not free the decision: ${textOf(afterWrite.content)}`);
+  assert.equal(dialogs.length, 2, 'the repeated gate reached the user');
+});
+
+test('through pi, a decision sent back for changes can be asked again with nothing written [integration]', limitFor(), async (t) => {
+  const model = await scriptedModel(t, [
+    callsTool(GATE, { questions: [APPROVE] }, RENDER),
+    callsTool(GATE, { questions: [APPROVE] }, `${RENDER}\n- FR2 — added as asked.`),
+    answers('done'),
+  ]);
+  const scratch = scratchProject(t, model.baseUrl);
+  const picks = [choiceFor(APPROVE.options[1]), choiceFor(APPROVE.options[0])];
+
+  const { messages, dialogs } = await runPrompt(scratch, 'Gate it.', { answer: () => ({ value: picks.shift() }) });
+  const [changes, revised] = toolResults(messages);
+
+  assert.equal(changes.isError, false, textOf(changes.content));
+  assert.equal(revised.isError, false, `a revised draft was refused: ${textOf(revised.content)}`);
+  assert.equal(dialogs.length, 2);
 });
 
 test('through pi, a dismissed gate is an error rather than an answer [integration]', limitFor(), async (t) => {

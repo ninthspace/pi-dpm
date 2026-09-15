@@ -17,7 +17,7 @@ import {
 } from '../extensions/dpm/handoff.ts';
 import { announcement } from '../src/plugin/session-id.ts';
 import {
-  answers, callsTool, limitFor, runPrompt, scratchProject, scriptedModel, SKILLS, textOf, toolResults,
+  answers, callsTool, callsTools, limitFor, runPrompt, scratchProject, scriptedModel, SKILLS, textOf, toolResults,
 } from './support/pi.js';
 
 /** Everything a request sent as the user's, joined — the skill body, its arguments, dpm's notes. */
@@ -81,11 +81,13 @@ test('through pi, a handoff ends the turn itself, and the skill continues in a n
   ]);
   const scratch = scratchProject(t, model.baseUrl);
 
-  const { errors, state, messages } = await runPrompt(scratch, '/skill:dpm-epics 01', { args: ['--skill', SKILLS], settles: 2 });
+  const { errors, state, messages, stops } = await runPrompt(scratch, '/skill:dpm-epics 01', { args: ['--skill', SKILLS], settles: 2 });
 
   assert.deepEqual(errors, [], 'the handoff raised an extension error');
   assert.equal(model.requests.length, 2,
     `the scripted model was asked ${model.requests.length} times — the old context was asked to go on after its handoff`);
+  // The resumed epics7 run: an abort as the turn ended cut off a request pi had already opened.
+  assert.deepEqual(stops, ['toolUse', 'stop'], 'the old context opened a request after its handoff');
 
   const [opened, resumed] = model.requests;
   const handedFrom = announcedId(opened);
@@ -108,6 +110,31 @@ test('through pi, a handoff ends the turn itself, and the skill continues in a n
   assert.equal(allText(resumed).includes(SAID), false, 'the old context came with the handoff');
   assert.equal(resumed.messages.some((message) => message.role === 'tool'), false,
     'a tool result from the old session reached the new one');
+});
+
+test('through pi, a handoff after another call in its own message still continues in a new session [integration]', limitFor(), async (t) => {
+  const SAID = 'Recording the state, then handing off.';
+
+  // The earlier call's result is final before the handoff runs, so `terminate` cannot end this batch;
+  // the abort as the turn ends is what stops the old context. Spare turns, in case its cut-off
+  // request reaches the model before the abort does.
+  const model = await scriptedModel(t, [
+    callsTools([['dpm_list_spec', {}], [HANDOFF, {}]], SAID),
+    answers('Continued.'),
+    answers('Continued.'),
+  ]);
+  const scratch = scratchProject(t, model.baseUrl);
+
+  const { errors, state } = await runPrompt(scratch, '/skill:dpm-epics 01', { args: ['--skill', SKILLS], settles: 2 });
+
+  assert.deepEqual(errors, [], 'the handoff raised an extension error');
+
+  const handedFrom = announcedId(model.requests[0]);
+  const resumed = model.requests.find((request) => userText(request).includes(continuation(handedFrom)));
+
+  assert.ok(resumed, 'no session was told to adopt the one that handed off');
+  assert.notEqual(state.sessionId, handedFrom, 'the run did not move to a new session');
+  assert.equal(allText(resumed).includes(SAID), false, 'the old context came with the handoff');
 });
 
 test('through pi, a handoff with no dpm skill running is refused, and no session follows [integration]', limitFor(), async (t) => {

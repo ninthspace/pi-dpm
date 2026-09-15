@@ -64,7 +64,8 @@ When the skill says to hand off:
    this context was told.
 2. `dpm_update_session` with that `state`, and the `phase` the continued run starts at.
 3. Say in one line what is finished and what continues.
-4. **Call the host's `handoff` tool, then end the turn with nothing further.** The host opens a fresh
+4. **Call the host's `handoff` tool in a message of its own, then end the turn with nothing
+   further.** The session update in step 2 goes in the message before it. The host opens a fresh
    context and invokes the skill again with the arguments it was first given. Where the host has no
    `handoff` tool, tell the user to start a fresh session and invoke the skill again with the same
    arguments.
@@ -126,12 +127,19 @@ labels, and long content is truncated there.
    user does not see, and not only in an earlier message, which is no longer the one being answered.
    **Every gate renders its own draft, including the one straight after another gate.** The next
    decision worked out in reasoning after an answer is not rendered until it is copied into the
-   reply — an MTPLX epics run blocked five gates in a row on exactly that.
+   reply — an MTPLX epics run blocked five gates in a row on exactly that. **A draft put up for
+   approval is rendered as its items** — the stories, criteria or tags themselves, as a list or a
+   table. A sentence about the draft is not the draft, and the host refuses a gate asking for approval
+   whose message has neither a list nor a table.
 2. **Then call `question`**, carrying only the decision — "Approve" / "Request changes" / "Stop",
    or "Choose A / B / C".
 
 **Step 1 is the one that gets dropped**, and a gate with nothing above it asks the user to approve
 something they have not been shown.
+
+**An approved decision is carried out, not asked again.** Once a gate is approved, write what it
+approved before the next gate. The host refuses a gate with the same `header` as one approved until
+something is written, and says which answer it was.
 
 **A gate that is only a selection still gets a sentence.** Offering the specs in the project, or
 asking whether to sweep evenly or focus, puts every choice in the `options` already; there is no

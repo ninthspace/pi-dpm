@@ -248,7 +248,7 @@ function spawnPi({ project, home }, argv, onRecord) {
  * @param {{args?: string[], answer?: (request: any) => object | undefined, settles?: number}} [options]
  */
 export async function runPrompt(scratch, message, { args = [], answer = () => undefined, settles = 1 } = {}) {
-  const outcome = { messages: null, state: null, dialogs: [], notices: [], errors: [], refusals: [] };
+  const outcome = { messages: null, state: null, dialogs: [], notices: [], errors: [], refusals: [], stops: [] };
   let finishing = false;
   let settled = 0;
 
@@ -273,6 +273,9 @@ export async function runPrompt(scratch, message, { args = [], answer = () => un
     } else if (record.type === 'extension_error') {
       outcome.errors.push(record);
       finish();
+    } else if (record.type === 'message_end' && record.message?.role === 'assistant') {
+      // Every session's, in order — how a test sees a request that was cut off rather than answered.
+      outcome.stops.push(record.message.stopReason);
     } else if (record.type === 'agent_settled') {
       settled += 1;
       if (settled >= settles) finish();

@@ -119,7 +119,12 @@ test('check_coverage gives every requirement its standing, counted from live bin
 
 test('check_coverage names every criterion neither bound nor warranted, and only those', (t) => {
   const { call } = surface(t);
-  const { spec, rejection } = project(call);
+  const { spec, rejection, warranted } = project(call);
+
+  // Tagged, so the only gaps left are the ones this test is about.
+  for (const criterion of [rejection, warranted]) {
+    call.create_story_criterion_approach({ story_criterion_id: criterion.id, tag: 'feature' });
+  }
 
   const report = call.check_coverage({ spec_id: spec.id });
 
@@ -174,11 +179,33 @@ test('check_coverage counts the breakdown from its rows', (t) => {
     must_not: 1,
     warranted: 1,
     tags: 1,
+    untagged: 2,
     tasks: 2,
     coverage: 1, // the retired binding is not counted
     coverage_story: 1,
     dependencies: 1,
   });
+});
+
+test('check_coverage names every live criterion with no approach tag as a gap, and a tag clears it', (t) => {
+  const { call } = surface(t);
+  const { spec, rejection, warranted } = project(call);
+
+  // The seventh MTPLX epics run: a story's tags gate approved, no tag written, and a check that passed.
+  const before = call.check_coverage({ spec_id: spec.id });
+
+  assert.deepEqual(before.untagged_criteria.map((criterion) => [criterion.id, criterion.epic, criterion.story]), [
+    [rejection.id, 'core', 1],
+    [warranted.id, 'core', 1], // accounted for by its warrant, and still untested without a tag
+  ]);
+  assert.ok(before.gaps.includes("core story 1: 'The decision is honoured.' has no approach tag"), before.gaps.join('\n'));
+
+  call.create_story_criterion_approach({ story_criterion_id: warranted.id, tag: 'feature' });
+
+  const after = call.check_coverage({ spec_id: spec.id });
+
+  assert.deepEqual(after.untagged_criteria.map((criterion) => criterion.id), [rejection.id]);
+  assert.equal(after.gaps.some((gap) => gap.includes('The decision is honoured.')), false);
 });
 
 test('check_coverage refuses an id that is not a spec, and names what it is', (t) => {

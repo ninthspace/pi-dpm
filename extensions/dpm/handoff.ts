@@ -28,8 +28,15 @@
  * turn, the model called `handoff` again, then wrote "Continued run: adopted the session, re-read the
  * spec" — none of which it had done — and went on with the third epic in the context the handoff
  * was meant to empty, writing that epic's stories without a gate. The session never settled, so the
- * continuation never ran. So an accepted handoff blocks every later call in its session, and the
- * turn is aborted as it ends: the session settles whatever the model would have done next.
+ * continuation never ran. So an accepted handoff blocks every later call in its session.
+ *
+ * **And the loop is stopped by the tool's result, not by an abort.** The handoff's result, and every
+ * call refused after it, carry pi's `terminate`, which ends the agent loop once every result in the
+ * batch has it — before another request is sent. The first version aborted as the turn ended instead,
+ * and by then pi had already opened the next request: the resumed epics7 run logged that request as
+ * a model error, cancelled a second after it began. A `terminate` cannot reach a call made before the
+ * handoff in the same message, whose result is already final, so a handoff that shares its message
+ * still aborts as the turn ends; the Handoff procedure asks for a message of its own.
  */
 
 import type { ExtensionAPI, ToolDefinition } from '@earendil-works/pi-coding-agent';
@@ -147,16 +154,27 @@ export function registerHandoff(pi: ExtensionAPI, skills: ReadonlySet<string>): 
 
       pending = continueCommand(running);
 
-      return { content: [{ type: 'text', text: handedOff(running.skill) }], details: { continues: pending } };
+      return {
+        content: [{ type: 'text', text: handedOff(running.skill) }],
+        details: { continues: pending },
+        terminate: true,
+      };
     },
   });
 
   // A call after an accepted handoff — a second `handoff`, or the next unit's work — is refused, and
-  // the turn is aborted as it ends, so no request follows it in this context.
-  pi.on('tool_call', () => (pending === null ? undefined : { block: true, reason: ALREADY_HANDED_OFF }));
+  // refused terminating, so the batch it is in still ends the loop.
+  pi.on('tool_call', () => (pending === null ? undefined : { block: true, reason: ALREADY_HANDED_OFF, terminate: true }));
 
-  pi.on('turn_end', (_event, ctx) => {
-    if (pending !== null) ctx.abort();
+  // Only for a handoff after other calls in its own message: their results were final before it ran,
+  // so the loop goes on to another request, and this cuts that request off.
+  pi.on('turn_end', (event, ctx) => {
+    if (pending === null) return;
+
+    const content = (event.message as { content?: unknown }).content;
+    const calls = (Array.isArray(content) ? content : []).filter((block) => block?.type === 'toolCall');
+
+    if (calls.findIndex((call) => call.name === HANDOFF) > 0) ctx.abort();
   });
 
   pi.on('agent_settled', () => {

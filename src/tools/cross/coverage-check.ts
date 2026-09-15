@@ -20,6 +20,11 @@
  * skill's own terms. Excluded requirements, deferred or out of scope or won't-have, are listed and
  * never flagged.
  *
+ * **An untagged criterion is a gap too.** The seventh MTPLX epics run approved a story's tags gate
+ * and never wrote the tags, and this check passed it: four criteria with no test approach, found only
+ * by a query afterwards. Step 3 tags every criterion, so a criterion without one is work skipped, and
+ * which ones those are is a query like the rest.
+ *
  * **Deliberately unbounded**, for `check_integrity`'s reason: a truncated gap report is a false pass.
  */
 
@@ -147,10 +152,18 @@ export function coverageReport(db: DatabaseSync, specId: string) {
   const count = (sql: string, ...values: unknown[]) => (db.prepare(sql).get(...values as SQLInputValue[]) as { n: number }).n;
   const coverageIds = coverage.map((row) => row.id);
 
+  const tagged = new Set(all(`SELECT DISTINCT story_criterion_id FROM story_criterion_approach
+                               WHERE story_criterion_id IN (${marks(criterionIds)})`, ...criterionIds)
+    .map((row) => row.story_criterion_id));
+  const untagged = criteria.items
+    .filter((criterion) => !tagged.has(criterion.id))
+    .map((criterion) => ({ id: criterion.id, ...located(criterion.id), polarity: criterion.polarity, text: criterion.text }));
+
   const gaps = [
     ...report.filter((requirement) => requirement.standing === 'gap')
       .map((requirement) => `${requirement.label} has no live coverage`),
     ...unaccounted.map((criterion) => `${criterion.epic} story ${criterion.story}: '${criterion.text}' is neither bound nor warranted`),
+    ...untagged.map((criterion) => `${criterion.epic} story ${criterion.story}: '${criterion.text}' has no approach tag`),
   ];
 
   return {
@@ -161,6 +174,7 @@ export function coverageReport(db: DatabaseSync, specId: string) {
       .map((requirement) => `${requirement.label} (${requirement.moscow ?? 'no band'}) has no live coverage`),
     requirements: report,
     unaccounted_criteria: unaccounted,
+    untagged_criteria: untagged,
     must_have_criteria: mustHaves,
     counts: {
       requirements: requirements.length,
@@ -172,6 +186,7 @@ export function coverageReport(db: DatabaseSync, specId: string) {
       warranted: criteria.items.filter((criterion) => criterion.warrant_adr_id !== null).length,
       tags: count(`SELECT count(*) AS n FROM story_criterion_approach
                     WHERE story_criterion_id IN (${marks(criterionIds)})`, ...criterionIds),
+      untagged: untagged.length,
       tasks: count(`SELECT count(*) AS n FROM task WHERE story_id IN (${marks(storyIds)})`, ...storyIds),
       coverage: coverage.length,
       coverage_story: count(`SELECT count(*) AS n FROM coverage_story
@@ -197,7 +212,7 @@ export function coverageCheckTools({ db }: Context): Tool[] {
         "Report a spec's breakdown against its requirements, counted from the rows: each requirement's "
         + 'live coverage and standing (gap: must-have or environmental with none; warning: should or '
         + 'could with none; excluded: deferred, out of scope or won\'t), every live story criterion '
-        + 'neither bound nor warranted, each must-have\'s spec criteria beside the story criteria '
+        + 'neither bound nor warranted, every one with no approach tag, each must-have\'s spec criteria beside the story criteria '
         + 'covering it for the caller to match, and the counts of epics, stories, criteria, tags, '
         + 'tasks, coverage and edges. Deliberately unbounded.',
       reads: ['coverage', 'requirement', 'acceptance_criterion', 'story_criterion', 'story', 'document',

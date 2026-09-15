@@ -37,7 +37,7 @@ import { packageRoot, SKILLS_DIRECTORY } from '../../src/plugin/root.ts';
 import { discoverSkills } from '../../src/plugin/skills.ts';
 import { advertisedTools, open } from '../../src/server/index.ts';
 import { activateSkills } from './activation.ts';
-import { register } from './adapter.ts';
+import { PREFIX, register } from './adapter.ts';
 import { registerCommands } from './commands.ts';
 import { registerGate } from './gate.ts';
 import { registerHandoff } from './handoff.ts';
@@ -48,13 +48,18 @@ export default function dpm(pi: ExtensionAPI): void {
   // `packageRoot` climbs two directories from where it is given, which from here is the checkout.
   const root = packageRoot(import.meta.dirname);
   let live: readonly Tool[] | null = null;
+  const advertised = advertisedTools();
 
-  register(pi, advertisedTools(), () => {
+  register(pi, advertised, () => {
     live ??= open(DATABASE);
 
     return live;
   });
-  registerGate(pi);
+  // A session update is not the work a gate approved: the phase reminder asks for one straight after
+  // an answer, and counting it would free the header before anything the answer asked for was written.
+  registerGate(pi, new Set(advertised
+    .filter((tool) => (tool as { mutates?: boolean }).mutates && !tool.name.endsWith('_session'))
+    .map((tool) => `${PREFIX}${tool.name}`)));
 
   const skills = discoverSkills(root);
 

@@ -130,7 +130,7 @@ test('an answered gate carries the phase reminder, and complete is accepted [int
   };
   const model = await scriptedModel(t, [
     callsTool(MOVES[0], { id: 'phase-reminder', skill: 'dpm:spec', phase: 'decisions' }),
-    callsTool(GATE, { questions: [gate] }, 'Here are the decisions.'),
+    callsTool(GATE, { questions: [gate] }, 'Here are the decisions:\n\n- ADR 1 — one static binary.'),
     callsTool(MOVES[1], { id: 'phase-reminder', phase: FINAL }),
     answers('done'),
   ]);
