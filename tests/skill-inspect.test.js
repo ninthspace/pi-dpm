@@ -110,6 +110,11 @@ function workspace(tools) {
       spec_fragment: requirement.text,
     });
     seed.update_coverage({ id: coverage.id, verified_at: '2026-08-09T00:00:00.000Z' });
+    // What the spec asked for, which the gap query reads beside what the criterion was tagged.
+    const asked = seed.create_acceptance_criterion({
+      requirement_id: requirement.id, text: `${name} is tested`, position: 1,
+    });
+    seed.create_criterion_approach({ criterion_id: asked.id, tag: 'unit' });
     seed.create_story_criterion_approach({
       story_criterion_id: criteria[name].id,
       tag: name === 'manual' ? 'manual' : 'unit',
@@ -155,7 +160,12 @@ function run(call, fixture, { bound = REQUIREMENTS + 10, attempt = 1 } = {}) {
         approaches: call.list_story_criterion_approach({
           story_criterion_id: row.story_criterion_id, ...page,
         }).items,
-        asked: call.list_criterion_approach({ criterion_id: requirement.id, ...page }).items,
+        // The spec's tags hang off its acceptance criteria, not off the requirement — and the list
+        // refuses a requirement's id as `criterion_id` rather than answering it with nothing.
+        asked: call.list_acceptance_criterion({ requirement_id: requirement.id, ...page }).items
+          .flatMap((criterion) => call.list_criterion_approach({
+            criterion_id: criterion.id, ...page,
+          }).items),
       })))
     .filter((entry) => entry.approaches.every((approach) =>
       ['manual', 'target'].includes(approach.tag)));

@@ -42,6 +42,12 @@ Follow the shared **Session Startup** procedure with `skill: 'dpm:epics'`.
 **Which epic the production loop reached belongs in `state`**, because Steps 3 to 3d run once per
 epic and a run resumed mid-loop has to know where to look.
 
+**So does anything settled for a later epic, as it is settled.** A binding a render leaves to another
+epic — *FR3's exit-code half binds in the CLI epic* — goes into `state` naming the requirement, the
+clause and the epic, and that epic's Step 3d binds it. Left in the conversation, it is gone at the
+next handoff, and Step 4 does not find it: the requirement already has a binding, so it is not
+reported uncovered.
+
 **On a resume, the rows say what is written** — the Session Startup rule. The loop is where it
 bites: a flag saying an epic's stories are not written may sit over stories that are. Before
 proposing anything for an epic, read what it already has, in this order, and resume at the first
@@ -83,6 +89,17 @@ category:
 Steps 1 and 2 run once. Steps 3, 3b, 3c and 3d then run **per epic**, and each epic's rows are
 complete before the next one starts. Step 4 closes the run across all of them.
 
+**Each epic ends with a handoff**, following the shared **Handoff** procedure. Once an epic's
+bindings are read back, record it as done in `state` with the epic that comes next, and hand off.
+Hand off once more after the last epic, so Step 4 starts in a fresh context as well. One context then
+holds one epic, however many epics the spec needs.
+
+**A continued run starts at the epic its `state` names.** It reads Step 1's source again, with the
+same bound and the same bodies, because the fragments it binds are quoted from requirement text this
+context has not seen, and it lists the spec's epics. It does not gate Steps 1 and 2 again, and it
+does not present the library, the decisions or the retro lessons the earlier run already weighed.
+The resume order under **Session** then finds where that epic's rows stop.
+
 Gate each step with the `question` tool, converging in one or two rounds. Where the user cannot decide
 after one clarification round, present a recommended structure and record the decision as
 provisional in the session `state`; it can be revised before execution begins.
@@ -90,6 +107,13 @@ provisional in the session `state`; it can be revised before execution begins.
 **Every one of those gates is two steps, and the first one is the one that gets dropped.** Render
 what is being decided in the message body; *then* call `question` with the decision alone. A gate
 arriving with nothing above it asks the user to approve something they have not been shown.
+The loop makes that easy to drop: tags, then tasks, then coverage, each gate straight after the
+last. Each one renders its own draft in its own message — a draft worked out in reasoning after the
+previous answer has not been shown.
+
+**Nothing a gate decides is written before it is answered** — a row found missing at the end as
+much as one planned at the start. Writing first and gating after asks the user to approve what is
+already recorded.
 
 ### Step 1: Read the source
 
@@ -133,6 +157,8 @@ rows of its own — Step 3d writes those — and it exists so the matrix has som
 Where one epic cannot start until another finishes, record it with `dpm_create_dependency`:
 `kind: 'blocks'`, the epic that must finish first as `source_document_id`, the one that waits as
 `target_document_id`. An edge that would close a cycle is refused when it is written, not later.
+An edge found the wrong way round is removed with `dpm_delete_dependency`, and the right one written
+after it.
 
 ### Step 3: Break into stories
 
@@ -143,7 +169,8 @@ single function is a task, so push it down to Step 3b.
 Agreeing them is two steps:
 
 1. **Render the proposed stories in the message body**, each with its title and the value it
-   delivers, so the breakdown is readable before any row exists.
+   delivers, so the breakdown is readable before any row exists. Write any order between them as
+   *"X must finish before Y"* — never as an arrow or as "X blocks Y", which read either way round.
 2. **Then gate** with the `question` tool.
 
 Each agreed story is then one `dpm_create_story` call under its epic, taking `number` (ordinal
@@ -158,7 +185,12 @@ story; these are defaults, not restrictions.
 
 Where a story cannot start until another finishes, record it with `dpm_create_dependency`:
 `kind: 'blocks'`, the blocker as `source_story_id`, the waiting story as `target_story_id`. Both
-ends may be stories in different epics.
+ends may be stories in different epics. For *"X must finish before Y"*, X is the source.
+
+**Read the edges back before the criteria.** `dpm_list_dependency` with each waiting story's
+`target_story_id`, and check every edge's `source_story_id` is a story approved to finish first. An
+edge the wrong way round is removed with `dpm_delete_dependency`, then written the right way; it is
+never accepted as recorded, since readiness would start the waiting story first.
 
 #### Acceptance criteria
 
@@ -187,7 +219,8 @@ text names the rejected outcome as though it happened: *a credential reaches a l
 credential is logged*, which would read as a double negative.
 
 **Carry every rejection the spec already states.** For each requirement this story delivers, read
-`dpm_list_acceptance_criterion` with `include_body` and give every criterion whose `polarity` is
+`dpm_list_acceptance_criterion` with its `requirement_id` and `include_body` — it takes no `spec_id` —
+and give every criterion whose `polarity` is
 `must_not` a story criterion of its own with the same polarity and the same boundary — which is the
 argument for `include_body`, there being nothing to transcribe from a row whose `text` was withheld.
 These are boundaries someone already argued for;
@@ -223,11 +256,20 @@ belong to and the unit whose rows exist once it passes.
 #### Approach tags
 
 Each criterion's approach is `dpm_create_story_criterion_approach`, naming the criterion and
-the `tag`. A criterion verified two ways carries two of them. `dpm_list_test_approach` returns
+the `tag`. A criterion verified two ways carries two of them.
+
+**Tag a criterion only once its create call has returned**, with the `id` that result carries. A
+criterion and its tags sent in the same message name an id that does not exist yet, and every such
+tag is refused. `dpm_list_test_approach` returns
 the terms this project recognises, each with its meaning; use those and no invented ones.
 
 **Propagate what the spec assigned.** For a criterion derived from a spec requirement, read that
-requirement's criteria and their `dpm_list_criterion_approach` rows, and apply the same tags.
+requirement's criteria and their `dpm_list_criterion_approach` rows (with `criterion_id`), and apply
+the same tags.
+
+**Read the story's tags back with `dpm_list_story_criterion_approach` and `story_criterion_id`.**
+`dpm_list_criterion_approach` holds the spec's tags and refuses a story criterion's id, so it cannot
+show what this step wrote.
 `tdd` is a workflow mode rather than a level, so it accompanies a level tag rather than replacing
 one.
 
@@ -318,6 +360,10 @@ refusal names it, and that is a binding sent to the wrong requirement's id: bind
 Never trim the fragment until the first requirement accepts it — that keeps the wrong id and quotes
 a clause it does not own.
 
+**A binding already written to the wrong criterion or requirement is withdrawn, not left beside its
+correction.** `dpm_retire_coverage` with its id and a reason naming what was wrong, then the right
+row. A wrong row left live goes on counting toward its requirement.
+
 **Quote the clause that carries the obligation.** A requirement often opens with wording that
 positions it — *"Building on the work above,"*, *"As with the other stores,"* — and states what it
 actually requires somewhere after that. Both halves are verbatim text and both satisfy the rule
@@ -334,17 +380,47 @@ against, which is what a reader comparing the two texts side by side is trying t
 fragment that appears nowhere in the requirement is refused exactly as before; connective wording
 is worse than the obligation and is still better than a paraphrase, which is not a fragment at all.
 
+**Quote the clause the criterion tests, not the nearest verbatim one.** Decide which words of the
+requirement the criterion checks before writing the binding; the fragment is those words. A
+requirement's opening words are the wrong fragment whenever the criterion tests something said later
+in it: a criterion rejecting zero-value lines bound to *"tally prints a per-month summary"* quotes
+real text that says nothing the criterion checks, and a reader comparing the two sides cannot see
+why they are paired.
+
+**A `must_not` criterion's fragment is the clause whose outcome it rejects** — the words that would
+be broken if the rejected outcome happened. A criterion rejecting a panic's exit code quotes the
+exit codes the requirement contracts; one rejecting zero-value lines quotes what the summary prints
+for each month. Where the criterion carries one of the spec's acceptance criteria whose words are
+not in the requirement, quote the narrowest clause that spec criterion elaborates, and name the spec
+criterion beside the binding in the render.
+
+**Every criterion on the story is bound or warranted, rejections included.** A `must_not` criterion
+is accounted for by a binding of its own. Its positive twin being bound does not account for it,
+and neither does its having been transcribed from the spec.
+
 Where one requirement is delivered by several criteria, write a row per criterion — each is
-independently verifiable. Where a criterion is also delivered by a story other than the one that
-declares it, add `dpm_create_coverage_story` naming that story.
+independently verifiable. Where a criterion is also delivered by another story **of the same epic**,
+add `dpm_create_coverage_story` naming that story. A story in another epic is refused: work it
+delivers is a criterion of that story, bound on its own. A row naming the wrong story is removed with
+`dpm_delete_coverage_story`, which leaves the binding standing.
 
 The bindings go to the user to judge, in two steps:
 
 1. **Render them in the message body**: the requirement text and the criterion text side by side,
-   both verbatim, with the tags. The judgement of fidelity is theirs; extraction and presentation
+   both verbatim, with the tags, and the fragment shown as the part of the requirement it quotes. The judgement of fidelity is theirs; extraction and presentation
    are yours, and a binding summarised rather than quoted is one they cannot judge.
 2. **Then gate**. Where they find a criterion weaker than the requirement, fix it with
    `dpm_update_story_criterion` before moving on.
+
+**Once they approve, write the bindings, then read them back before the next epic or Step 4.** For
+each criterion of this epic, `dpm_list_coverage` with `story_criterion_id` and `include_body`, and
+compare what it returns with what was approved: every approved binding present, to the requirement
+and fragment approved, and nothing else live. Check each row's requirement by its
+`requirement_label`, which every coverage row carries, rather than by ids remembered from earlier calls: a
+row's fragment is already known to be in the requirement it names, so a label that matches the approval
+is a binding to leave alone. A binding missing is written now; one wrong is withdrawn with
+`dpm_retire_coverage` and written again. A step that moves on from the write alone is reporting
+the calls it sent, and Step 4 then finds the gaps they left as though the breakdown had them.
 
 **Nothing here writes a table, and nothing here records a verification.** The matrix is a projection
 of these rows. Verification is `coverage.verified_at`, written during execution, and it is cleared
@@ -353,63 +429,82 @@ cannot outlive the text that earned it.
 
 ### Step 4: Confirm
 
-**The gap check is a query over the spec, not a sum of what was just written.** For each requirement
-from `dpm_list_requirement` with `include_body`, call `dpm_list_coverage` on it. A
-requirement with no coverage row is a gap when it is either:
+**The gap check is `dpm_check_coverage` with the spec's id — one read over the spec, made in this
+step, not a sum of what was just written.** What Step 3 read came before this run wrote anything, and
+a check answered from memory of it has the shape of a check without being one. The report returns:
 
-- **must have** — the system fails without it; or
-- **environmental** — its `class` is `environmental_requirement` or `environmental_restriction`,
-  whatever its band. Leaving one uncovered does not change the host it describes; it only stops
-  anyone noticing until the work is built and will not run.
+- `requirements` — every requirement of the spec with its live `coverage` count and its `standing`.
+  `gap` is a requirement nothing live is bound to that is either **must have** — the system fails
+  without it — or **environmental**, whatever its band: leaving one uncovered does not change the
+  host it describes; it only stops anyone noticing until the work is built and will not run.
+  `warning` is a should- or could-have with nothing bound, and `excluded` is deferred, out of scope
+  or won't-have.
+- `unaccounted_criteria` — every live story criterion whose `accounted_for` is false: neither a live
+  binding nor a warrant (`warrant_adr_id`, the accepted decision that constrains the story where no
+  requirement does). It is the same field `dpm_list_story_criterion` returns.
+  **There is no third way to be accounted for.** An unbound `must_not` criterion is a gap like any
+  other — not finished work because its positive twin is bound, and not because the spec stated it.
+- `gaps` and `warnings` — both of the above as sentences, and `ok`, true only when `gaps` is empty.
+- `must_have_criteria` — for each must-have in scope, its text, its spec criteria, and the story
+  criteria covering it with the fragment each binding quotes.
+- `counts` — epics, stories, live story criteria, `must_not` criteria, warrants, tags, tasks, live
+  coverage rows, coverage_story rows and dependency edges.
 
-A third class is a gap *despite* being covered, so finding it means reading the criteria rather than
-counting rows: a **must have** naming an action a user takes whose every covering criterion
-describes a system response, with none naming the affordance that reaches it. The requirement is
-bound, the stories are honest, and nobody owns the way in. It blocks on the same terms as an
-uncovered one — this is the only gate that asks whether the delivered system can be used, because
-everything downstream verifies criteria as written.
+**Report every entry of `gaps` and `warnings`.** None is dropped because an earlier step believed the
+requirement covered; the report is the later reading.
 
-**Both texts have to be in hand for that, and both are withheld by default.** Whether a requirement
-names an action a user takes is in its `text`, not in its `class` or its band; whether a criterion
-names the affordance or only the response is in the criterion's. So the requirement read above
-carries `include_body`, and each covering criterion is reached with
-`dpm_read_story_criterion` and `include_body` through the `story_criterion_id` its coverage row
-names. Run over labels and counts, the gate returns a verdict computed against text it never saw —
-and it returns it in the same shape as a real one.
+**Two gaps are judgements the report cannot make, and both are made from `must_have_criteria`.**
 
-**The criterion side of the same check is `accounted_for`, returned by
-`dpm_list_story_criterion` with `include_body` and not worked out here.** A criterion is
-accounted for when it has a live binding **or** a warrant — `warrant_adr_id`, the accepted decision
-that constrains the story where no requirement does. A criterion with neither is unbound and belongs
-in the report, named by its `text` since it has no title; one with a warrant is finished work and
-does not, and a run that counted coverage rows instead would call it a gap on every breakdown that
-recorded one.
+- **A requirement is covered only as far as its spec criteria are.** A row says one clause of it is
+  delivered, not every clause: a requirement asking for a single pass *and* a time limit is bound by
+  a row on the single pass while the time limit reaches no story. Find each spec criterion's
+  counterpart among `covering_criteria`; a spec criterion none of them carries is a gap on the same
+  terms as an uncovered requirement.
+- **A must-have naming an action a user takes is a gap despite being covered** when every covering
+  criterion describes a system response and none names the affordance that reaches it. The
+  requirement is bound, the stories are honest, and nobody owns the way in. It blocks on the same
+  terms — this is the only gate that asks whether the delivered system can be used, because
+  everything downstream verifies criteria as written.
 
-**A requirement is covered only as far as its spec criteria are.** A row says one clause of it is
-delivered, not every clause: a requirement asking for a single pass *and* a time limit is bound by a
-row on the single pass while the time limit reaches no story. So for each **must have**,
-`dpm_list_acceptance_criterion` with `requirement_id` and `include_body`, and find each spec
-criterion's counterpart among the covering criteria read above. A spec criterion none of them
-carries is a gap on the same terms as an uncovered requirement.
+So the gap-check result lists, for each must-have, each of its spec criteria beside the covering
+criterion found for it or marked as a gap, in the texts the report returned.
 
 **Then `dpm_check_integrity`.** The gap check reads what the rows say; this reads whether they hold.
 Report each violation not marked `advisory` with the rows it names, and treat it as a gap.
 
 Resolve each gap before finishing: add it to an existing epic, raise a story for it, or defer it
-with a stated reason. Should-have requirements with no cover are warnings rather than blockers.
+with a stated reason. Should-have requirements with no cover are warnings rather than blockers. A
+gap closed with new criteria or coverage rows goes through the step it belongs to — render, gate,
+then write — before the final tree is gated. A coverage_story row the integrity check reports across
+epics is removed with `dpm_delete_coverage_story`.
+
+**The final tree is rendered from a read made after the last write.** Once every gap is closed and
+its rows are written, call `dpm_check_coverage` again and read the tree back with the calls below,
+and only then render it. A tree
+rendered before its gaps are written, or from what earlier messages said, shows a breakdown that is
+not the one recorded.
 
 Then, in two steps:
 
-1. **Render the whole tree in the message body** — epics, their stories, their tasks, the
-   dependencies between them, a suggested order, and the gap-check result.
-2. **Then gate** it with the `question` tool. Approval ends the run.
+1. **Render the whole tree in the message body** from those reads — epics, their stories, their
+   tasks, the dependencies between them, a suggested order, the gap-check result, and the counts.
+2. **Then gate** it with the `question` tool, **as the only question in that call**. A final-tree
+   question asked beside another decision is approved before that decision's rows exist. Approval
+   ends the run.
 
-**Read the tree back rather than repeating what was sent.** `dpm_list_story` per epic,
-`dpm_list_task` and `dpm_list_story_criterion` per story, both with `include_body`. A
+**Read the tree back rather than repeating what was sent.** `dpm_list_epic` with the spec as
+`parent_id`, then `dpm_list_story` per epic — neither withholds a column, so neither takes
+`include_body` — then `dpm_list_task` and `dpm_list_story_criterion` per story, both with
+`include_body`. A
 value that never reached a row is absent from the rows and present in the summary, and an absence
 read from a summary reads as something that was not needed — and a task's `description` and a
 criterion's `text` are the values most worth reading back, being the ones a read that did not ask
 for them returns as absent whether they were written or not.
+
+**Every count in the tree and the closing summary is the last `dpm_check_coverage` report's
+`counts`**, and requirements are the ones its `requirements` lists, with each `excluded` one named as
+outside scope. A number carried from a draft, an earlier message or a tally of the calls sent is the
+one that has drifted.
 
 ## Autonomous mode
 

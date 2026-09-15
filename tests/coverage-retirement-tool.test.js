@@ -217,22 +217,25 @@ const deleters = (tools) => tools.filter((tool) => tool.name.startsWith('delete_
  */
 const deletedTables = (sources) => sources
   .filter(({ name }) => !name.endsWith('crud.js'))
-  .flatMap(({ text }) => [...withoutComments(text).matchAll(/deleteById\(\s*db\s*,\s*'([^']+)'/g)]
+  .flatMap(({ text }) => [...withoutComments(text).matchAll(/deleteBy(?:Id|Key)\(\s*db\s*,\s*'([^']+)'/g)]
     .map(([, table]) => table));
 
 test('no tool in the registered surface deletes a coverage row [unit]', (t) => {
   const { tools } = surface(t);
 
-  // One delete tool exists, and it is not on `coverage`: a session is a working note with no history
-  // to keep, which is exactly what a coverage row is not.
-  assert.deepEqual(deleters(tools).map((tool) => tool.name), ['delete_session']);
-  assert.deepEqual(deleters(tools).filter((tool) => tool.table.startsWith('coverage')), []);
+  // Three delete tools exist, and none is on `coverage`: a session is a working note with no history
+  // to keep, and an edge and an "also delivered by" row are relationships rather than records
+  // anything was verified against — which is exactly what a coverage row is not. `coverage_story`
+  // extends a coverage row and deleting one leaves the binding standing.
+  assert.deepEqual(deleters(tools).map((tool) => tool.name).sort(),
+    ['delete_coverage_story', 'delete_dependency', 'delete_session']);
+  assert.deepEqual(deleters(tools).filter((tool) => tool.table === 'coverage'), []);
 
   // The other half, over the call sites rather than the names.
   const sources = sweepSourcesUnder(SOURCES);
 
-  assert.deepEqual(deletedTables(sources), ['session'],
-    'something in src/ deletes a row through crud.js that is not a session');
+  assert.deepEqual(deletedTables(sources).sort(), ['coverage_story', 'dependency', 'session'],
+    'something in src/ deletes a row through crud.js that is not a session, an edge or a coverage_story row');
   assert.ok(sources.length > 30, `only ${sources.length} sources were swept`);
 });
 
@@ -244,7 +247,7 @@ test('both sweeps flag a planted deleter [unit]', (t) => {
   // above on a surface that deleted coverage rows freely.
   const planted = [...tools, { name: 'delete_coverage', table: 'coverage' }];
 
-  assert.deepEqual(deleters(planted).filter((tool) => tool.table.startsWith('coverage'))
+  assert.deepEqual(deleters(planted).filter((tool) => tool.table === 'coverage')
     .map((tool) => tool.name), ['delete_coverage']);
 
   assert.deepEqual(

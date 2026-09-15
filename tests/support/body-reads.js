@@ -302,20 +302,14 @@ export const CLASSIFICATION = new Map(Object.entries({
     [true, 'every `must_not` criterion is given a story criterion with the same text — the file calls it transcription'],
   'epics · list_task · Step 3b: Tasks within stories':
     [false, 'the read-back compares titles with the ones approved, and a title is not withheld'],
-  'epics · list_acceptance_criterion · Step 4: Confirm':
-    [true, 'each spec criterion is matched to a covering criterion by what it says, which is its `text`'],
-  'epics · list_requirement · Step 4: Confirm':
-    [true, 'the reachability gate asks whether a requirement **names an action a user takes**, which cannot be read off `moscow` and `class`'],
-  'epics · read_story_criterion · Step 4: Confirm':
-    [true, 'the reachability gate weighs *"whether a criterion names the affordance or only the response"*, which is in the criterion\'s text'],
-  'epics · list_coverage · Step 4: Confirm':
-    [false, 'the gap check is presence and absence, and follows `story_criterion_id`; the fragment is not judged here'],
+  'epics · list_coverage · Step 3d: Requirement coverage':
+    [true, 'the read-back compares each binding with the one approved, fragment included, and `spec_fragment` is withheld'],
   'epics · list_task · Step 4: Confirm':
     [true, 'reads the tree back to catch *"A value that never reached a row is absent from the rows"*, and `description` is one of those values'],
   'epics · list_story_criterion · Step 4: Confirm':
-    [true, 'the gap check reports the criteria whose `accounted_for` is false, and names each by its `text`'],
+    [false, 'names the field `check_coverage` shares with this list; the gap check reads the report, not the list'],
   'epics · list_story_criterion · Step 4: Confirm #2':
-    [true, 'the same read-back, and the criteria the reachability gate weighs come through it'],
+    [true, 'reads the tree back, and a criterion\'s `text` is a value a read that did not ask for it returns as absent'],
   'epics · list_story_criterion · Session':
     [false, 'a resume asks only whether a story already has criteria, which is whether the list is empty'],
   'epics · list_task · Session':
@@ -324,7 +318,7 @@ export const CLASSIFICATION = new Map(Object.entries({
     [false, 'a resume asks only whether a criterion is already bound, and follows `story_criterion_id`'],
 
   // --- inspect ----------------------------------------------------------------------------------
-  // Seven sites, none of which needs a body — and the sweep flagged every one.
+  // Eight sites, none of which needs a body — and the sweep flagged every one.
   'inspect · list_requirement · 3. Join the change set to what records intent':
     [false, 'traces a change set to the row that records its intent; a requirement is named by `label`'],
   'inspect · list_task · 3. Join the change set to what records intent':
@@ -339,6 +333,8 @@ export const CLASSIFICATION = new Map(Object.entries({
     [false, 'reports what has been published, by `title` and `url`'],
   'inspect · list_coverage · 3. Join the change set to what records intent #2':
     [false, 'the gap query is whether the list comes back empty'],
+  'inspect · list_acceptance_criterion · 3. Join the change set to what records intent':
+    [false, 'read only for the ids `dpm_list_criterion_approach` takes; the tags are compared, not the text'],
 
   // --- library ----------------------------------------------------------------------------------
   'library · list_document_section · 1. Read what is there':

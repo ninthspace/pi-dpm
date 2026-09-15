@@ -71,12 +71,14 @@ export type Dialogs = Pick<ExtensionUIContext, 'select' | 'input'>;
 /** What the model is told when a gate is blocked for having no text in its own message. */
 export const UNRENDERED = `${GATE}: the message calling ${GATE} has no text, so the user would be asked to decide `
   + 'something they cannot see. Write what is being decided in the reply text of the message that calls '
-  + `${GATE} — not in reasoning, and not only in an earlier message — then call ${GATE} again.`;
+  + `${GATE} — not in reasoning, and not only in an earlier message — then call ${GATE} again. A gate `
+  + 'straight after another gate or after writes renders its own draft too: a draft worked out in reasoning '
+  + 'is not shown until it is copied into the reply.';
 
 /** A session entry, as far as the guard reads one. */
 type BranchEntry = {
   readonly type: string;
-  readonly message?: { readonly role: string; readonly content?: unknown };
+  readonly message?: { readonly role: string; readonly content?: unknown; readonly toolCallId?: string };
 };
 
 /**
@@ -92,13 +94,21 @@ type BranchEntry = {
  * all 38 gates whose render the user saw had it in the calling message. All three that had text only
  * in an earlier message had their draft in that message's reasoning.
  *
- * Anything after the calling message is not the caller, so a user message or tool result reached
- * first means there is no calling message to read.
+ * **Except the results of the calling message's own earlier calls.** A message that renders, updates
+ * the session and then gates has the update's result on the branch by the time this runs, so reading
+ * a tool result as "no caller" refused a gate whose render was right there. The second MTPLX epics
+ * run lost two gates that way — 2,135 and 1,515 characters of render — and the model, told its
+ * message had no text, retried with none. So a tool result is passed over when the assistant message
+ * reached next made that call; a user message, or a result answering some other message's call,
+ * still means there is no calling message to read.
  *
  * @param branch The session branch, root first, as `sessionManager.getBranch()` returns it.
+ * @param callId The gate's own tool call id, when known — the calling message has to hold it.
  * @returns {string}
  */
-export function renderedWithGate(branch: readonly BranchEntry[]): string {
+export function renderedWithGate(branch: readonly BranchEntry[], callId?: string): string {
+  const passed: string[] = [];
+
   for (let i = branch.length - 1; i >= 0; i -= 1) {
     const entry = branch[i]!;
 
@@ -107,14 +117,26 @@ export function renderedWithGate(branch: readonly BranchEntry[]): string {
     const message = entry.type === 'message' ? entry.message : undefined;
 
     if (message === undefined) continue;
+
+    if (message.role === 'toolResult' && message.toolCallId) {
+      passed.push(message.toolCallId);
+      continue;
+    }
+
     if (message.role !== 'assistant') return '';
 
-    return Array.isArray(message.content)
-      ? (message.content as { type?: string; text?: string }[])
-        .filter((block) => block.type === 'text' && block.text?.trim())
-        .map((block) => block.text!.trim())
-        .join('\n')
-      : '';
+    const content = Array.isArray(message.content)
+      ? message.content as { type?: string; text?: string; id?: string }[]
+      : [];
+    const calls = new Set(content.filter((block) => block.type === 'toolCall').map((block) => block.id));
+
+    if (passed.some((id) => !calls.has(id))) return '';
+    if (callId !== undefined && !calls.has(callId)) return '';
+
+    return content
+      .filter((block) => block.type === 'text' && block.text?.trim())
+      .map((block) => block.text!.trim())
+      .join('\n');
   }
 
   return '';
@@ -277,7 +299,9 @@ export function registerGate(pi: ExtensionAPI): void {
   // user. pi brings the session up to date through the calling message before this runs.
   pi.on('tool_call', (event, ctx) => {
     if (event.toolName !== GATE) return undefined;
-    if (renderedWithGate(ctx.sessionManager.getBranch() as unknown as readonly BranchEntry[]) !== '') return undefined;
+    const branch = ctx.sessionManager.getBranch() as unknown as readonly BranchEntry[];
+
+    if (renderedWithGate(branch, event.toolCallId) !== '') return undefined;
 
     return { block: true, reason: UNRENDERED };
   });

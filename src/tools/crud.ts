@@ -56,14 +56,59 @@ function itemNamed(message: string, table: string, values: Args) {
 }
 
 /**
+ * `— story_criterion_id '…' names no story_criterion row` for a foreign key failure, `''` otherwise.
+ *
+ * SQLite's own message names neither the column nor the value. An MTPLX epics run tagged criteria in
+ * the same message that created them, sending ids nobody had returned yet, and was told only
+ * "FOREIGN KEY constraint failed" — twice, with nothing to say which of two ids was wrong. Asked
+ * after the statement failed, so nothing was written and each reference reads as it stands.
+ *
+ * A composite reference is checked as the whole tuple, and skipped when the write did not supply
+ * every column of it: an update names only what changed, and a partial tuple cannot be looked up.
+ */
+function danglingNamed(db: DatabaseSync, table: string, values: Args): string {
+  const references = db.prepare(`PRAGMA foreign_key_list(${table})`).all() as Array<{
+    id: number; table: string; from: string; to: string | null;
+  }>;
+  const grouped = new Map<number, typeof references>();
+
+  for (const reference of references) {
+    grouped.set(reference.id, [...(grouped.get(reference.id) ?? []), reference]);
+  }
+  const named: string[] = [];
+
+  for (const columns of grouped.values()) {
+    const parent = columns[0]!.table;
+
+    if (columns.some(({ from }) => values[from] === undefined || values[from] === null)) continue;
+
+    const keys = columns.some(({ to }) => to === null)
+      ? (db.prepare(`PRAGMA table_info(${parent})`).all() as Array<{ name: string; pk: number }>)
+        .filter((column) => column.pk > 0).sort((a, b) => a.pk - b.pk).map((column) => column.name)
+      : columns.map(({ to }) => to!);
+    const found = db.prepare(`SELECT 1 FROM ${parent} WHERE ${keys.map((key) => `${key} = ?`).join(' AND ')}`)
+      .get(...columns.map(({ from }) => values[from] as SQLInputValue));
+
+    if (!found) {
+      named.push(`${columns.map(({ from }) => `${from} '${values[from]}'`).join(', ')} names no ${parent} row`);
+    }
+  }
+
+  return named.length > 0 ? ` — ${named.join('; ')}` : '';
+}
+
+/**
  * Run a statement, turning SQLite's constraint failures into caller-facing refusals.
  *
  * @param {string} where The tool name, for the message.
  * @param {() => object} run
  * @param {{table: string, values: Record<string, unknown>}} [wrote] What was being written, so a
- *   retirement abort can name the item as well as the column. Omitted where nothing was.
+ *   retirement abort can name the item as well as the column, and a foreign key failure the
+ *   reference that names no row. Omitted where nothing was.
  */
-function attempt<T>(where: string, run: () => T, wrote?: { table: string; values: Args }): T {
+function attempt<T>(
+  where: string, run: () => T, wrote?: { table: string; values: Args; db: DatabaseSync },
+): T {
   try {
     return run();
   } catch (error) {
@@ -78,8 +123,11 @@ function attempt<T>(where: string, run: () => T, wrote?: { table: string; values
     // translation, and until here nothing had run the two together.
     if (RETIRED.test(message) || /constraint|FOREIGN KEY|UNIQUE|CHECK/i.test(message)) {
       const item = wrote ? itemNamed(message, wrote.table, wrote.values) : '';
+      const dangling = wrote && /FOREIGN KEY/i.test(message)
+        ? danglingNamed(wrote.db, wrote.table, wrote.values)
+        : '';
 
-      throw new ToolError(`${where}: ${message}${item}`);
+      throw new ToolError(`${where}: ${message}${item}${dangling}`);
     }
     throw error;
   }
@@ -128,7 +176,7 @@ export function insert(
   attempt(
     where,
     () => db.prepare(sql).run(...columns.map((column) => values[column]) as SQLInputValue[]),
-    { table, values },
+    { table, values, db },
   );
 
   const keys = Array.isArray(key) ? key : [key];
@@ -231,7 +279,7 @@ export function updateByKey(
   const changed = attempt(where, () => db.prepare(sql).run(
     ...columns.map((column) => values[column]) as SQLInputValue[],
     ...keyColumns.map((column) => key[column]) as SQLInputValue[],
-  ), { table, values });
+  ), { table, values, db });
 
   if (changed.changes === 0) {
     throw new ToolError(
@@ -272,6 +320,31 @@ export function deleteById(
   const row = readById(db, table, id, where, key);
 
   attempt(where, () => db.prepare(`DELETE FROM ${table} WHERE ${key} = ?`).run(id));
+
+  return row;
+}
+
+/**
+ * Delete one row named by a composite key — `deleteById`, for a join table whose key is its columns.
+ *
+ * The same read-before and refusal on absence, for the same reasons. A second function rather than
+ * an array accepted by the first, so the sweep in `coverage-retirement-tool.test.js` reads each
+ * call site's table the same way whichever of the two it goes through.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} table
+ * @param {object} key Column → value, every column of the table's primary key.
+ * @param {string} where
+ * @returns {object} The row as it was immediately before deletion.
+ * @throws {ToolError} If there is no such row, or if something still references it.
+ */
+export function deleteByKey(db: DatabaseSync, table: string, key: Args, where: string): Row {
+  const row = readByKey(db, table, key, where);
+  const columns = Object.keys(key);
+
+  attempt(where, () => db
+    .prepare(`DELETE FROM ${table} WHERE ${columns.map((column) => `${column} = ?`).join(' AND ')}`)
+    .run(...columns.map((column) => key[column]) as SQLInputValue[]));
 
   return row;
 }

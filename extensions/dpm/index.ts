@@ -10,6 +10,7 @@
  * - `commands.ts` — `/dpm-*`, each a route to `/skill:dpm-*`.
  * - `activation.ts` — a skill's own tools, and no other dpm tools, from the turn it opens.
  * - `session.ts` — the harness session id, told to the model on that same turn.
+ * - `handoff.ts` — `handoff` and `/dpm-continue`, a run continued in a fresh context.
  *
  * **The database opens on the first tool call and never at load**, as it does under the MCP server.
  * pi runs extension factories in invocations that start no session at all, and a factory that
@@ -39,6 +40,7 @@ import { activateSkills } from './activation.ts';
 import { register } from './adapter.ts';
 import { registerCommands } from './commands.ts';
 import { registerGate } from './gate.ts';
+import { registerHandoff } from './handoff.ts';
 import { plans, registerPhases } from './phases.ts';
 import { announceSession } from './session.ts';
 
@@ -62,4 +64,5 @@ export default function dpm(pi: ExtensionAPI): void {
   const phases = registerPhases(pi, plans(skills));
 
   activateSkills(pi, allowances(root), (skill) => announcement.arm(phases.activate(skill)));
+  registerHandoff(pi, new Set(skills.map((skill) => skill.name)));
 }

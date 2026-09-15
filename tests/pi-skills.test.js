@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import { PREFIX } from '../extensions/dpm/adapter.ts';
 import { COMPLETIONS, completionsFor, skillMessage } from '../extensions/dpm/commands.ts';
 import { GATE } from '../extensions/dpm/gate.ts';
+import { HANDOFF } from '../extensions/dpm/handoff.ts';
 import { narrowed, skillInvoked } from '../extensions/dpm/activation.ts';
 import { allowances } from '../src/plugin/allowlist.ts';
 import { announcement } from '../src/plugin/session-id.ts';
@@ -119,7 +120,7 @@ test('/dpm-spec and /skill:dpm-spec send the same tools, and they are the OpenCo
   const command = await run('/dpm-spec FR scope only');
   const skill = await run('/skill:dpm-spec FR scope only');
 
-  const expected = [...derived['dpm-spec'], GATE].sort();
+  const expected = [...derived['dpm-spec'], GATE, HANDOFF].sort();
 
   assert.ok(expected.length < registered.size / 2, 'the allowance is not narrowing anything');
   assert.deepEqual(toolsSent(command.request), expected, '/dpm-spec is not at parity with the OpenCode allow-list');
@@ -143,7 +144,7 @@ test('control: a prompt that runs no skill keeps every dpm tool and carries no a
 
   await runPrompt(scratch, 'What is dpm-spec for?', { args: ['--skill', SKILLS] });
 
-  assert.deepEqual(toolsSent(model.requests[0]), [...registered, GATE].sort());
+  assert.deepEqual(toolsSent(model.requests[0]), [...registered, GATE, HANDOFF].sort());
   assert.equal(userText(model.requests[0]).includes('harness session id'), false,
     'a turn that opened no dpm skill was told about dpm sessions');
 });

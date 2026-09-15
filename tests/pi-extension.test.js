@@ -12,6 +12,7 @@ import { join } from 'node:path';
 
 import { PREFIX, register } from '../extensions/dpm/adapter.ts';
 import { GATE, registerGate } from '../extensions/dpm/gate.ts';
+import { HANDOFF } from '../extensions/dpm/handoff.ts';
 import { advertisedTools } from '../src/server/index.ts';
 import {
   answers, callsTool, limitFor, PI, runPrompt, scratchProject, scriptedModel, textOf, toolResults, toolsSent,
@@ -45,9 +46,11 @@ test('pi sends the model every registry tool under its dpm_ name, and a turn wit
   const sent = toolsSent(model.requests[0]);
   const expected = advertisedTools().map((tool) => `${PREFIX}${tool.name}`).sort();
 
-  // Derived from the registry, never a restated 184 (T1). The gate is the one tool beside them.
+  // Derived from the registry, never a restated 184 (T1). The gate and the handoff are the two tools
+  // beside them.
   assert.ok(expected.length > 100, `the registry built ${expected.length} tools, which is not dpm's`);
-  assert.deepEqual(sent, [...expected, GATE].sort(), 'the tools pi put in front of the model are not the registry and the gate');
+  assert.deepEqual(sent, [...expected, GATE, HANDOFF].sort(),
+    'the tools pi put in front of the model are not the registry, the gate and the handoff');
 
   // The schema reaches the model as the registry wrote it: no typebox wrapping, nothing dropped.
   const listSpec = model.requests[0].tools.find((tool) => tool.function.name === `${PREFIX}list_spec`);

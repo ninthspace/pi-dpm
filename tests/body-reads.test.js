@@ -144,7 +144,6 @@ test('must NOT — a site is classified from what its step does, never from a ne
     'dpm-architect · list_document_section · Input',
     'dpm-brief · list_document_section · Phase 1: Problem recap',
     'dpm-consult · list_agent · Startup',
-    'dpm-epics · list_coverage · Step 4: Confirm',
     'dpm-library · list_document_section · 1. Read what is there',
     'dpm-pivot · list_coverage · Where the cascade reaches',
     'dpm-pivot · list_document_section · Phase 2: Amend',

@@ -16,7 +16,7 @@ import {
   UNRENDERED, wrap,
 } from '../extensions/dpm/gate.ts';
 import {
-  answers, callsTool, limitFor, ROOT, runJson, runPrompt, scratchProject, scriptedModel, textOf, toolResults,
+  answers, callsTool, callsTools, limitFor, ROOT, runJson, runPrompt, scratchProject, scriptedModel, textOf, toolResults,
 } from './support/pi.js';
 
 const CONVENTIONS = readFileSync(join(ROOT, 'shared', 'skill-conventions.md'), 'utf8');
@@ -181,6 +181,28 @@ test('the render is read from the message calling the gate, and text in an earli
   assert.equal(renderedWithGate([said('old'), { type: 'compaction' }]), '');
 });
 
+test('a gate after another call in its own message reads that message, and only that message', () => {
+  const calling = (text, ...ids) => ({
+    type: 'message',
+    message: {
+      role: 'assistant',
+      content: [...(text ? [{ type: 'text', text }] : []), ...ids.map((id) => ({ type: 'toolCall', id, name: id }))],
+    },
+  });
+  const result = (toolCallId) => ({ type: 'message', message: { role: 'toolResult', toolCallId, isError: false, content: [] } });
+  const user = { type: 'message', message: { role: 'user', content: 'go' } };
+
+  // The second MTPLX epics run: render, session update, gate — the update's result is already on the branch.
+  assert.equal(renderedWithGate([user, calling('Draft E', 'update', 'gate'), result('update')], 'gate'), 'Draft E');
+  // The id is optional; the result still has to answer the message reached.
+  assert.equal(renderedWithGate([user, calling('Draft F', 'update', 'gate'), result('update')]), 'Draft F');
+  // A result answering an earlier message's call does not make that message the caller.
+  assert.equal(renderedWithGate([user, calling('Old text', 'update'), result('update'), calling('', 'gate')], 'gate'), '');
+  assert.equal(renderedWithGate([user, calling('Old text', 'update'), result('elsewhere')], 'gate'), '');
+  // And a message that does not hold the gate's call is not its caller.
+  assert.equal(renderedWithGate([user, calling('Draft G', 'update')], 'gate'), '');
+});
+
 test('wrap keeps every line within the width, cutting a word that cannot fit', () => {
   assert.deepEqual(wrap('one two three', 7), ['one two', 'three']);
   assert.deepEqual(wrap('abcdefghij', 4), ['abcd', 'efgh', 'ij']);
@@ -256,6 +278,21 @@ test('through pi, text in an earlier message does not carry to a gate whose own 
   assert.ok(textOf(blocked.content).includes(UNRENDERED), `the block did not say why: ${textOf(blocked.content)}`);
   assert.equal(asked.isError, false, `the rendered retry failed: ${textOf(asked.content)}`);
   assert.equal(dialogs.length, 1, 'the gate with no text of its own reached the user');
+});
+
+test('through pi, a rendered gate after another call in the same message is asked, not blocked [integration]', limitFor(), async (t) => {
+  const model = await scriptedModel(t, [
+    callsTools([['dpm_list_spec', {}], [GATE, { questions: [APPROVE] }]], RENDER),
+    answers('done'),
+  ]);
+  const scratch = scratchProject(t, model.baseUrl);
+
+  const { messages, dialogs } = await runPrompt(scratch, 'Gate it.', { answer: (request) => ({ value: request.options[0] }) });
+  const [listed, asked] = toolResults(messages);
+
+  assert.equal(listed.isError, false, textOf(listed.content));
+  assert.equal(asked.isError, false, `a gate rendered in its own message was blocked: ${textOf(asked.content)}`);
+  assert.equal(dialogs.length, 1, 'the gate did not reach the user');
 });
 
 test('through pi, a dismissed gate is an error rather than an answer [integration]', limitFor(), async (t) => {

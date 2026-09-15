@@ -25,6 +25,8 @@ import { currentSkew } from '../server/neighbour.ts';
 import { stampSkew } from '../server/stamp.ts';
 import { withAccountedFor } from '../coverage/warrant.ts';
 import { ToolError } from './convention.ts';
+import { hasColumn } from '../schema/columns.ts';
+import { coverageCheckTools } from './cross/coverage-check.ts';
 import { dependencyTools } from './cross/dependency.ts';
 import { integrityTools } from './cross/integrity.ts';
 import { numberingTools } from './cross/numbering.ts';
@@ -188,6 +190,23 @@ export function spineTools(
       // ask the same question and prose is the one place two copies of a rule cannot be compared.
       derived: (value) => withAccountedFor(db, value),
       guard: (row, where) => {
+        // One live criterion per text on a story. An MTPLX epics run lost track of which criteria
+        // it had written and sent one again, and only `UNIQUE (story_id, position)` stopped it —
+        // by accident, because it reused the position. At the next position it would have landed,
+        // and the story would carry the same check twice under two coverage-bindable ids.
+        // A database older than supersession is filled through these tools by migration tests.
+        const superseding = hasColumn(db, 'story_criterion', 'superseded_at');
+        const twin = row.superseded_at ? undefined : db.prepare(`
+          SELECT id, position FROM story_criterion
+           WHERE story_id = ? AND text = ? AND id <> ?
+           ${superseding ? 'AND superseded_at IS NULL' : ''}
+        `).get(row.story_id, row.text, row.id) as { id: string; position: number } | undefined;
+
+        if (twin) {
+          throw new ToolError(`${where}: this story already has that criterion at position `
+            + `${twin.position} (${twin.id}) — read the story's criteria back rather than writing it again`);
+        }
+
         // Most criteria carry no warrant. Checked first so an update that mentions only `text` is
         // not refused for a column it never named.
         if (!row.warrant_adr_id) return;
@@ -282,6 +301,9 @@ export function spineTools(
     // that writes the tree rather than a row (AD11).
     ...numberingTools(context),
     ...integrityTools(context),
+    // A spec's gap check, beside the sweep it complements: that one asks whether the rows hold,
+    // this one what they add up to against the requirements.
+    ...coverageCheckTools(context),
     ...publishTools(context),
   ];
 }

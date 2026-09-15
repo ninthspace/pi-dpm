@@ -29,7 +29,7 @@ import type { Args, Row, Tool } from '../convention.ts';
 import { REGISTER } from '../../integrity/register.ts';
 import { ulid } from '../../id/ulid.ts';
 import { defineTool, SUPPLIED, ToolError } from '../convention.ts';
-import { insert, readById } from '../crud.ts';
+import { deleteById, insert, readById } from '../crud.ts';
 
 /**
  * Register entry 1, found by its number.
@@ -127,9 +127,13 @@ export function dependencyTools(
     defineTool({
       name: 'create_dependency',
       table: 'dependency',
+      // "Source-blocks-target" alone was read backwards by a local model: it wrote the waiting story
+      // as the source on every edge of an epic. The sentence naming which end finishes first is
+      // the one a caller choosing between two ids can check its call against.
       description:
-        'Link two documents or stories with a typed edge, reading source-blocks-target. '
-        + 'On a supersedes edge the source is the superseded end and the target replaces it. '
+        'Link two documents or stories with a typed edge, reading source-blocks-target: on a '
+        + 'blocks edge the source must finish before the target can start, so the waiting end is '
+        + 'the target. On a supersedes edge the source is the superseded end and the target replaces it. '
         + 'Refuses an edge that would close a cycle over a kind that gates work, and one whose '
         + 'ends are document kinds its own kind does not admit.',
       // `dependency` alone, and the endpoint table deliberately not beside it: `reads` on a
@@ -241,6 +245,29 @@ export function dependencyTools(
 
         return row;
       },
+    }),
+
+    // **Deleted rather than retired, and that is a choice about this table rather than a lapse.**
+    // Without a way to remove one, an edge written the wrong way round could be noticed and never
+    // corrected: the right edge beside it closes a cycle over the wrong one and is refused. An MTPLX
+    // epics run hit exactly that and could only recommend accepting the backwards edge. Retirement
+    // would need columns, and `tests/parity-v070.test.js` holds this schema byte-identical to
+    // v0.7.0's; an edge is a relationship rather than a record anything was verified against, so
+    // nothing downstream loses a history it relied on.
+    defineTool({
+      name: 'delete_dependency',
+      table: 'dependency',
+      description: 'Delete an edge — one recorded the wrong way round, or no longer true — so the '
+        + 'corrected edge can be written after it. Returns the edge as it was. Not reversible.',
+      reads: ['dependency'],
+      mutates: true,
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { id: { type: 'string', minLength: 1 } },
+        required: ['id'],
+      },
+      handler: (args) => deleteById(db, 'dependency', args.id, 'delete_dependency'),
     }),
   ];
 }

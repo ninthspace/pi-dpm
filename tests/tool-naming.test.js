@@ -116,6 +116,9 @@ test('the naming is recorded on the epic before any skill prose is rewritten [in
  * without a line here still fails.
  */
 const ADDED = [
+  'check_coverage', // an epics run's hand-assembled gap check skipped two requirements and miscounted
+  'delete_coverage_story', // a cross-epic "also delivered by" row was reported and could not be removed
+  'delete_dependency', // an edge recorded backwards could be noticed by an epics run and not corrected
   'read_shared_document', // 02-03 story 1 — ADR 02-01, the shared documents through the server
 ];
 
@@ -135,6 +138,17 @@ const ADDED = [
  * A second edit to a declared field fails the same way an undeclared one does.
  */
 const REWORDED = [
+  {
+    tools: ['create_coverage_story'],
+    at: ['description'],
+    was: 'Create the record that a story also delivers a coverage row.',
+    now: 'Create the record that a story also delivers a coverage row. Refuses a story in another epic '
+      + 'than the criterion the coverage row binds: work in another epic is a criterion of that story, '
+      + 'bound on its own.',
+    // An MTPLX epics run named a story of another epic, which register entry 4 reports and nothing
+    // could then remove. The refusal is the write's; the description is how a caller learns it first.
+    why: 'the tool now refuses a cross-epic story, and a caller should read that before it is refused',
+  },
   {
     // Both session tools take the same `FIELDS` object, so one edit moves two entries here.
     tools: ['create_session', 'update_session'],
@@ -158,6 +172,21 @@ const REWORDED = [
     // still rendered wrongly: two wrote "tally does not print…", a double negative under the
     // prefix, and one cut "must not" out of the middle, leaving "tally print a traceback".
     why: 'it forbade the prefix without saying what the text is, and specs rendered as double negatives',
+  },
+  {
+    tools: ['create_dependency'],
+    at: ['description'],
+    was: 'Link two documents or stories with a typed edge, reading source-blocks-target. On a supersedes '
+      + 'edge the source is the superseded end and the target replaces it. Refuses an edge that would '
+      + 'close a cycle over a kind that gates work, and one whose ends are document kinds its own kind '
+      + 'does not admit.',
+    now: 'Link two documents or stories with a typed edge, reading source-blocks-target: on a blocks edge '
+      + 'the source must finish before the target can start, so the waiting end is the target. On a '
+      + 'supersedes edge the source is the superseded end and the target replaces it. Refuses an edge '
+      + 'that would close a cycle over a kind that gates work, and one whose ends are document kinds its '
+      + 'own kind does not admit.',
+    // An MTPLX epics run wrote every story edge of an epic with the waiting story as the source.
+    why: '"source-blocks-target" alone was read backwards, and the sentence naming which end finishes first is checkable',
   },
 ];
 

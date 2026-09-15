@@ -155,7 +155,9 @@ const ADDED = [
   'ci-skill-body.test.js', //          01-03 story 4 — the build check, driven against planted breaches
   'ci.test.js', //                     story 7 — the workflow, and the environment two absences need
   'commands-route.test.js', //         the per-skill commands that displace the host's body-pasting ones
+  'coverage-check-tool.test.js', //    an MTPLX epics run — the gap check as one read, and a cross-epic coverage_story row
   'dependency-isolation.test.js', //   01-02 story 4 — the empty production tree, read off the lockfile
+  'epics-run-corrections.test.js', //  an MTPLX epics run — the backwards edge deleted, a stray list filter, a criterion twice
   'executables-typescript.test.js', // story 3 — the five binaries under plain node
   'guard-hook-path.test.js', //        01-04 story 1 — the hook fires, and no refusal names a host mechanism
   'host-independent-artefacts.test.js', // 02-05 story 1 — one database, both hosts' runtimes, and no host named
@@ -165,6 +167,7 @@ const ADDED = [
   'permission-entries.test.js', //     01-04 story 5 — the README's rules name skills and tools that exist
   'pi-extension.test.js', //           pi port phase 0 — the registry through pi's agent loop, against a restored dump
   'pi-gate.test.js', //                pi port phase 1 — `question`, in the conventions' shape, answered over RPC and refused without a UI
+  'pi-handoff.test.js', //             an MTPLX epics run — a skill run continued in a fresh context that adopts the old session
   'pi-phases.test.js', //              pi port phase 1 — each skill's steps and levels, the phase guard, the level on the next request
   'pi-skills.test.js', //              pi port phase 1 — the registry probe, both routes to a skill, parity with the allow-list
   'pi-written.test.js', //             pi port — what a write hands back to the model, less what it was sent

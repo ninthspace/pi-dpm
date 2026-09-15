@@ -69,6 +69,18 @@ export const callsTool = (name, args, text) => [
   chunk({}, 'tool_calls'),
 ];
 
+/** A turn making several tool calls in one message, in order, each `[name, args]`. */
+export const callsTools = (calls, text) => [
+  chunk({
+    role: 'assistant',
+    ...(text === undefined ? {} : { content: text }),
+    tool_calls: calls.map(([name, args], index) => ({
+      index, id: `call_${index + 1}`, type: 'function', function: { name, arguments: JSON.stringify(args) },
+    })),
+  }),
+  chunk({}, 'tool_calls'),
+];
+
 /** A turn that answers in text and stops. */
 export const answers = (text) => [chunk({ role: 'assistant', content: text }), chunk({}, 'stop')];
 
@@ -224,7 +236,8 @@ function spawnPi({ project, home }, argv, onRecord) {
  *
  * **The run ends at the first of three things**: the agent settling, an extension error, or pi
  * refusing the prompt. The last two are outcomes some tests expect, so they are collected rather
- * than thrown.
+ * than thrown. A run that hands off settles once per session, so `settles` says how many to wait
+ * for; the state and messages read back are the last session's.
  *
  * **Dialogs are answered by `answer`**, which is handed each `extension_ui_request` and returns the
  * response fields — `{ value }`, `{ confirmed }` — or `undefined` to cancel. Fire-and-forget
@@ -232,11 +245,12 @@ function spawnPi({ project, home }, argv, onRecord) {
  *
  * @param {{project: string, home: string}} scratch
  * @param {string} message
- * @param {{args?: string[], answer?: (request: any) => object | undefined}} [options]
+ * @param {{args?: string[], answer?: (request: any) => object | undefined, settles?: number}} [options]
  */
-export async function runPrompt(scratch, message, { args = [], answer = () => undefined } = {}) {
+export async function runPrompt(scratch, message, { args = [], answer = () => undefined, settles = 1 } = {}) {
   const outcome = { messages: null, state: null, dialogs: [], notices: [], errors: [], refusals: [] };
   let finishing = false;
+  let settled = 0;
 
   const finish = () => {
     if (finishing) return;
@@ -260,7 +274,8 @@ export async function runPrompt(scratch, message, { args = [], answer = () => un
       outcome.errors.push(record);
       finish();
     } else if (record.type === 'agent_settled') {
-      finish();
+      settled += 1;
+      if (settled >= settles) finish();
     } else if (record.type === 'response' && record.command === 'get_state') {
       outcome.state = record.data;
     } else if (record.type === 'response' && record.command === 'get_messages') {

@@ -23,8 +23,36 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { Tool } from './convention.ts';
 
-import { defineTool } from './convention.ts';
+import { defineTool, ToolError } from './convention.ts';
 import { selectPage, includeFlag } from './query.ts';
+
+/** What a scope column must name: a row of `parent` whose `key` is the value given. */
+type Reference = { parent: string; key: string };
+
+/** A table's first primary key column, absent for a table keyed on its rowid. */
+function primaryKey(db: DatabaseSync, table: string): string | undefined {
+  return (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string; pk: number }>)
+    .find((column) => column.pk === 1)?.name;
+}
+
+/** The scope columns of `table` a caller supplies that are foreign keys, with what each names. */
+function scopeReferences(db: DatabaseSync, table: string, columns: string[]): Map<string, Reference> {
+  const keys = db.prepare(`PRAGMA foreign_key_list(${table})`)
+    .all() as Array<{ from: string; table: string; to: string | null }>;
+
+  return new Map(keys
+    .filter((key) => columns.includes(key.from))
+    .map((key) => [key.from, { parent: key.table, key: key.to ?? primaryKey(db, key.table) ?? 'rowid' }]));
+}
+
+/** Tables keyed on a column named `id`, which is where a stray id can be looked for. */
+function idTables(db: DatabaseSync): string[] {
+  return (db.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")
+    .all() as Array<{ name: string }>)
+    .map((row) => row.name)
+    .filter((table) => primaryKey(db, table) === 'id')
+    .sort();
+}
 
 /** One list tool's declaration, whether written out in `LISTS` or derived from the schema. */
 type ListDescriptor = {
@@ -365,6 +393,50 @@ function childLists(db: DatabaseSync, spine: Tool[]): ListDescriptor[] {
 export function listTools({ db }: { db: DatabaseSync }, spine: Tool[]): Tool[] {
   const all = [...documentLists(db), ...LISTS, ...childLists(db, spine)];
 
+  // **A scope naming no row of the table it references is refused, where it used to list nothing.**
+  // An MTPLX epics run read its story tags back through `list_criterion_approach` with story
+  // criterion ids — the spec side's tool — got ten empty pages, took them for writes that never
+  // happened, and wrote the tags a second time. An empty page is the correct answer to a scope that
+  // names a real row with no children, and the wrong answer to one that names a row of another
+  // table, and the two looked identical. Naming the table the id does belong to, and the list that
+  // takes it, is what turns the mistake into a second call instead of a second write.
+  const references = new Map(all.map((entry) => [`list_${entry.type}`,
+    scopeReferences(db, entry.table, [...(entry.within ? [entry.within] : []), ...(entry.scopes ?? [])])]));
+  const keyed = idTables(db);
+
+  /** Each parent table, and the lists that take one of its ids as a scope. */
+  const takers = new Map<string, Array<{ name: string; table: string; column: string }>>();
+  for (const entry of all) {
+    for (const [column, { parent }] of references.get(`list_${entry.type}`)!) {
+      takers.set(parent, [...(takers.get(parent) ?? []), { name: `list_${entry.type}`, table: entry.table, column }]);
+    }
+  }
+
+  /** The list worth suggesting for an id of `owner`: the sibling of `table` if there is one. */
+  const suggestion = (owner: string, table: string) => {
+    const candidates = takers.get(owner) ?? [];
+    const siblings = candidates.filter((taker) => taker.table.endsWith(table) || table.endsWith(taker.table));
+    const offered = siblings.length > 0 ? siblings : candidates.length <= 3 ? candidates : [];
+
+    return offered.map((taker) => `${taker.name} takes it as ${taker.column}`).join(', or ');
+  };
+
+  const refuseStrayScope = (name: string, table: string, args: Record<string, unknown>) => {
+    for (const [column, { parent, key }] of references.get(name)!) {
+      const value = args[column];
+      if (value === undefined || value === null) continue;
+      if (db.prepare(`SELECT 1 FROM ${parent} WHERE ${key} = ?`).get(value as string)) continue;
+
+      const owner = key === 'id'
+        ? keyed.find((candidate) => db.prepare(`SELECT 1 FROM ${candidate} WHERE id = ?`).get(value as string))
+        : undefined;
+      const offer = owner ? suggestion(owner, table) : '';
+
+      throw new ToolError(`${name}: ${column} '${value}' names no ${parent} row`
+        + (owner ? `; it is a ${owner} id${offer ? ` — ${offer}` : ''}` : ''));
+    }
+  };
+
   return all.map(({
     type, table, fixed = {}, within, scopes = [], gated, live, order, documentRows = false,
   }) => {
@@ -448,18 +520,22 @@ export function listTools({ db }: { db: DatabaseSync }, spine: Tool[]): Tool[] {
         // it safe rather than the scope being compulsory.
         required: [],
       },
-      handler: (args) => selectPage(db, {
-        table,
-        order,
-        gated,
-        live,
-        where: name,
-        filters: {
-          ...fixed,
-          ...(within ? { [within]: args[within] } : {}),
-          ...Object.fromEntries(scopes.map((column) => [column, args[column]])),
-        },
-      }, args),
+      handler: (args) => {
+        refuseStrayScope(name, table, args);
+
+        return selectPage(db, {
+          table,
+          order,
+          gated,
+          live,
+          where: name,
+          filters: {
+            ...fixed,
+            ...(within ? { [within]: args[within] } : {}),
+            ...Object.fromEntries(scopes.map((column) => [column, args[column]])),
+          },
+        }, args);
+      },
     });
   });
 }

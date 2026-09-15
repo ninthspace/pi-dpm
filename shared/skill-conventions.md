@@ -47,6 +47,34 @@ conversation is one that has to be re-facilitated after a compaction. **It does 
 that is a column** — a status, a number, a flag — because a copy in the blob is a second answer that
 goes stale the moment the row moves.
 
+## Handoff
+
+A skill whose run works through units of one kind — epics, stories — ends each unit here, and the run
+continues in a fresh context. One context then holds one unit, however many units there are and
+whatever model runs them: a run that keeps everything in one context grows until the model server
+runs out of memory or the model loses the thread. What was written down survives the handoff, because
+the continued run adopts the session and reads the rows. What was only said does not, and that is the
+whole of the procedure.
+
+When the skill says to hand off:
+
+1. **Put in `state` everything the rest of the run needs that is not a row** — the unit that comes
+   next, and anything a later unit was promised: a clause left for another unit to bind, a finding
+   held for a later step. The continued run has that state, the rows and the skill, and nothing else
+   this context was told.
+2. `dpm_update_session` with that `state`, and the `phase` the continued run starts at.
+3. Say in one line what is finished and what continues.
+4. **Call the host's `handoff` tool, then end the turn with nothing further.** The host opens a fresh
+   context and invokes the skill again with the arguments it was first given. Where the host has no
+   `handoff` tool, tell the user to start a fresh session and invoke the skill again with the same
+   arguments.
+
+**A continued run is a resume, and it is told so.** It adopts the predecessor at Session Startup,
+reads its `state`, and goes on from the phase recorded. It does not facilitate again what the state
+records as settled — a gate already answered, a startup discovery already weighed. It does read again
+what its next step works from, because reading decides nothing: text read in the earlier context is
+not in this one, and a step quoting it from memory is quoting what it cannot see.
+
 ## Library Check
 
 1. `dpm_list_library`, then `dpm_list_library_scope` on each, to find those scoped to
@@ -96,6 +124,9 @@ labels, and long content is truncated there.
    lists of proposed changes. If what the user needs to read runs past a sentence or two, it
    belongs here. It belongs in the same message as the call in step 2: not in reasoning, which the
    user does not see, and not only in an earlier message, which is no longer the one being answered.
+   **Every gate renders its own draft, including the one straight after another gate.** The next
+   decision worked out in reasoning after an answer is not rendered until it is copied into the
+   reply — an MTPLX epics run blocked five gates in a row on exactly that.
 2. **Then call `question`**, carrying only the decision — "Approve" / "Request changes" / "Stop",
    or "Choose A / B / C".
 
