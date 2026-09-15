@@ -40,9 +40,21 @@ The epic, once resolved, holds for the whole loop.
 Follow the shared **Session Startup** procedure with `skill: 'dpm:do'`, putting the task about to
 start in `phase` and moving it on after every completed task.
 
-`state` holds the test command, the framework, and the per-story record of what the refactoring pass
-did. **It does not hold task or story status**, which are columns, or which stories are planned,
-which is a column.
+`state` holds the epic this run resolved, the test command, the framework, the retro lessons the gate
+applied with how each changes the run, the per-story record of what the refactoring pass did, and the
+stories this run left short of complete, each with why. **It does not hold task or story status**,
+which are columns, or which stories are planned, which is a column.
+
+**Each story ends with a handoff**, following the shared **Handoff** procedure, at Step 7. One context
+then holds one story — its code, its test output, its verification — however many stories the epic
+has. A story's work reads files and runs tests, and all of that stays in the context that did it.
+
+**A continued run starts at Story selection, for the epic its `state` names**, not the one Input would
+pick now: with no epic named, the ready list can offer another, or several. It does not run the retro
+gate again, since the dispositions are written and the applied lessons are in `state` as its lens. It
+does not rediscover the test runner or the framework, and it does not present the library again — it
+reads a library document when a task needs one, as the first context did. The shared **Session
+Startup** resume rule then finds where the story's rows stop.
 
 ### Retro consumption gate
 
@@ -94,6 +106,11 @@ in the session `state`. Nothing else is detected here yet.
 with no blocker short of `complete` over an edge whose kind gates work — **the same query that
 answers the same question for epics**, and the reason blocking is an edge rather than a status.
 Take the lowest `number`.
+
+**Except a story `state` records this run left short of complete.** It is still `pending`, so the
+query offers it again, and a continued run that took it would work the same story round in a loop.
+Take the lowest-numbered story `state` does not name; where every ready story is one it names, go to
+Step 8 as though none were ready, which reports them with the rest of what is unfinished.
 
 **The two halves read `status` differently, and both lean the safe way.** A story is workable only
 while `pending`, so a `superseded` or `withdrawn` one is never offered — it is not work this run
@@ -251,8 +268,11 @@ Then go straight to Step 7. Finishing a task, a story, or a commit is **not** a 
 
 ### 7. Next task
 
-Silent. The next pending task under this story, or — when there is none — the next ready story from
-**Story selection**, or Step 8. No announcement, no summary, no asking whether to carry on.
+Silent. The next pending task under this story. **When there is none, the story is over, and it ends
+with the handoff** that **Session** describes: `dpm_update_session` with `phase: 'select'` and the
+state the continued run needs, then the shared procedure. The continued run takes the next ready story
+from **Story selection**, or goes to Step 8. No summary, and no asking whether to carry on — the
+handoff's one line says what finished, and it waits for nobody.
 
 ### 8. Epic summary
 
@@ -400,7 +420,8 @@ gap found in the spec and left for a human — goes in `dpm_create_document_sect
   the user explicitly approves it anyway.
 - **No unauthorised checkpoints.** The loop stops only at the gates named here: unmet criteria, an
   unroutable tag, a blocker, an ambiguous criterion, a change moment, and the epic-end offer.
-  Task-to-task and story-to-story transitions are silent. Any prompt asking whether to carry on is
+  Task-to-task and story-to-story transitions are silent, and the handoff between stories is that
+  transition, not a stop: it asks nothing. Any prompt asking whether to carry on is
   an unauthorised checkpoint however it is worded — "shall I continue?", "ready for the next one?",
   "commit first?" — and the answer is to return to Step 7 instead.
 - **Version control stays with the user.** Do not commit, stage, branch or push unless a task's

@@ -541,6 +541,27 @@ test('the retro gate disposes of each observation, and the verification gate wai
   assert.equal(result.worked[0].tasks.length, 2);
 });
 
+// --- The per-story handoff -----------------------------------------------------------------------
+
+test('each story ends with a handoff, and the continued run keeps its epic and passes over what it left unfinished', () => {
+  const session = section(source, 'Session');
+  const selection = section(source, 'Story selection');
+  const next = section(source, '7. Next task');
+
+  assert.match(session, /\*\*Each story ends with a handoff\*\*, following the shared \*\*Handoff\*\* procedure/,
+    'the skill does not hand off per story');
+  // Input picks an epic from the ready list when none is named, and the continued run is invoked
+  // with the same arguments: without the epic in `state` it could pick another.
+  assert.match(session, /`state` holds the epic this run resolved/, 'the epic is not carried across the handoff');
+  assert.match(session, /for the epic its `state` names/, 'a continued run is free to select another epic');
+  assert.match(session, /does not run the retro\s+gate again/, 'a continued run re-facilitates the retro gate');
+  // A story left short of complete is still pending, so the ready query offers it to every continued run.
+  assert.match(selection, /left short of complete/, 'an unfinished story is offered again after each handoff');
+  assert.match(next, /ends\s+with the handoff/, 'the end of a story does not hand off');
+  assert.match(section(source, 'Guidelines'), /handoff between stories is that\s+transition, not a stop/,
+    'the handoff reads as an unauthorised checkpoint');
+});
+
 // --- Epic 04-05 Story 3: the roll-up counts the bindings that remain -----------------------------
 
 test('Step 8 says its count is over the bindings that remain', () => {
