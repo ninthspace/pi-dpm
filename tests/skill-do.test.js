@@ -254,7 +254,7 @@ function run(call, fixture) {
 
     const verified = criteria.flatMap(({ criterion }) =>
       call.list_coverage({ story_criterion_id: criterion.id }).items
-        .map((row) => call.update_coverage({ id: row.id, verified_at: '2026-08-09T00:00:00.000Z' })));
+        .map((row) => call.update_coverage({ id: row.id, verified: true })));
 
     call.update_story({
       id: story.id,
@@ -296,7 +296,8 @@ function run(call, fixture) {
 
 test('a do run writes status through update tools and records verification as a coverage row', (t) => {
   const db = openPlanningDatabase(t);
-  const tools = spineTools(db);
+  // Pinned, because the mark's time is the server's: the run asks for the mark and never names it.
+  const tools = spineTools(db, { now: () => '2026-08-09T00:00:00.000Z' });
   const { call, used, passed } = recorder(tools);
 
   const fixture = project(tools);
@@ -333,6 +334,11 @@ test('a do run writes status through update tools and records verification as a 
 
   assert.ok(!passed.get('update_coverage').has('binding_hash'),
     'the run supplied the digest that vouches for its own claim');
+
+  // The same rule for the other half of the pair. An MTPLX run typed a `verified_at` it had never
+  // read off a clock, which is a time nothing checked in the column a later reader trusts.
+  assert.ok(!passed.get('update_coverage').has('verified_at'),
+    'the run typed the time its own verification was made');
 
   // **The trigger governs the mark, not the skill.** Editing the criterion clears the pair with
   // nothing in the file having to remember to — which is why the file may not carry its own rule.
@@ -560,6 +566,21 @@ test('each story ends with a handoff, and the continued run keeps its epic and p
   assert.match(next, /ends\s+with the handoff/, 'the end of a story does not hand off');
   assert.match(section(source, 'Guidelines'), /handoff between stories is that\s+transition, not a stop/,
     'the handoff reads as an unauthorised checkpoint');
+});
+
+test('a run works one epic, closes its session, and names the next epic without working it', () => {
+  assert.match(section(source, 'Input'), /\*\*One run works one epic\*\* and ends at Step 8/,
+    'nothing holds a run to a single epic');
+  // Left open, a finished run is offered for resume, and its `state` names an epic already done.
+  assert.match(SUMMARY_STEP, /\*\*Then the run ends\.\*\* `dpm_update_session` with `phase: 'complete'`/,
+    'Step 8 leaves the session open');
+  assert.match(SUMMARY_STEP, /\*\*This run does not work\s+it, and does not ask whether to\*\*/,
+    'the next epic can be taken up by the same run');
+
+  const guidelines = section(source, 'Guidelines');
+
+  assert.equal(guidelines.includes('epic-end offer'), false, 'the next epic is still a gate this run acts on');
+  assert.match(guidelines, /after one epic, naming the next rather than asking to start it/);
 });
 
 // --- Epic 04-05 Story 3: the roll-up counts the bindings that remain -----------------------------

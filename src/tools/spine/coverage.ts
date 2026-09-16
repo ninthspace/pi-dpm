@@ -11,10 +11,17 @@
  *
  * **`verified_at` and `binding_hash` are set together or not at all**, which the table's `CHECK`
  * enforces and this tool does not duplicate. What these tools do add is that the pair can only be
- * set *correctly*: `verified_at` is the caller's, `binding_hash` is computed from the row's own two
- * texts by `src/coverage/binding.js` and is not an argument at all. A hash chosen by the party
- * making the claim attests to nothing, and the `CHECK` would have accepted any string — so a
- * skill writing a ✓ says when, and the server says over what.
+ * set *correctly*: neither half is the caller's. The caller says `verified: true`; the server's
+ * clock says when, and `src/coverage/binding.js` says over what, computed from the row's own two
+ * texts. Neither is an argument at all.
+ *
+ * **Both halves are the server's because a model typed the other one.** An MTPLX `dpm-do` run
+ * marking its first story verified sent `verified_at: "2026-09-15T19:17:00Z"` — a plausible time it
+ * had never read off a clock, in the column every later reader trusts to say when the check
+ * happened. A hash chosen by the party making the claim attests to nothing and the `CHECK` would
+ * have accepted any string; a *time* chosen by that party is the same defect in the half that looks
+ * harmless, and it can be backdated. So a skill says **that** it verified, and the server says when
+ * and over what.
  *
  * **Retirement is its own verb, and `update_coverage` does not offer it.** `retire_coverage` takes
  * an id and a reason; the timestamp is the server's. The alternative — `retired_at` and
@@ -130,9 +137,10 @@ function refuseStrayFragment(db: DatabaseSync, args: Record<string, unknown>): v
 
 const STATE = {
   position: { type: 'integer', minimum: 0, description: 'Display order only; not identity' },
-  verified_at: {
-    type: 'string',
-    description: 'ISO 8601. Records the ✓; the server computes the binding hash that accompanies it',
+  verified: {
+    type: 'boolean',
+    description: 'Record the verification, or clear it with false. The server stamps the time from '
+      + 'its own clock and computes the binding hash that accompanies it',
   },
 };
 
@@ -152,7 +160,11 @@ export function coverageTools({ db, now, newId }: Context): Tool[] {
       reads: ['coverage'],
       mutates: true,
       derived: (value) => withRequirementLabel(db, value),
-      serverSupplied: { id: SUPPLIED.ulid, binding_hash: SUPPLIED.derived('the bound texts') },
+      serverSupplied: {
+        id: SUPPLIED.ulid,
+        verified_at: SUPPLIED.clock,
+        binding_hash: SUPPLIED.derived('the bound texts'),
+      },
       inputSchema: {
         type: 'object',
         additionalProperties: false,
@@ -167,13 +179,14 @@ export function coverageTools({ db, now, newId }: Context): Tool[] {
           spec_fragment: args.spec_fragment,
           story_criterion_id: args.story_criterion_id,
           position: args.position,
-          verified_at: args.verified_at ?? null,
+          verified_at: args.verified ? now() : null,
           // Computed from the arguments rather than read back, because the row is not there yet —
-          // and the criterion is, which is the half that has to be looked up either way. Nullish,
-          // so a row created explicitly unverified gets no hash: a `binding_hash` beside a NULL
-          // `verified_at` is a binding recorded for a verification that was never made, which is
-          // the state FR21's decay triggers exist to prevent arising the other way round.
-          binding_hash: args.verified_at == null ? null : bindingHash(db, args as Binding),
+          // and the criterion is, which is the half that has to be looked up either way. Only when
+          // the caller asked for the mark, so a row created unverified gets no hash: a
+          // `binding_hash` beside a NULL `verified_at` is a binding recorded for a verification that
+          // was never made, which is the state FR21's decay triggers exist to prevent arising the
+          // other way round.
+          binding_hash: args.verified ? bindingHash(db, args as Binding) : null,
         }, 'create_coverage');
       },
     }),
@@ -203,28 +216,36 @@ export function coverageTools({ db, now, newId }: Context): Tool[] {
       reads: ['coverage'],
       mutates: true,
       derived: (value) => withRequirementLabel(db, value),
+      serverSupplied: {
+        verified_at: SUPPLIED.clock,
+        binding_hash: SUPPLIED.derived('the bound texts'),
+      },
       inputSchema: {
         type: 'object',
         additionalProperties: false,
         properties: { id: { type: 'string', minLength: 1 }, ...STATE },
         required: ['id'],
       },
-      // The mark and its binding move together, in all three of the states a caller can now
-      // express. Omitting `verified_at` leaves both alone. Supplying one hashes off the **stored**
-      // row rather than off anything the caller holds: a verification is a statement about the
-      // texts as they are now, and a caller working from a copy read earlier would otherwise stamp
-      // a hash over text that has since moved. Clearing it clears the hash with it — a binding
-      // left behind by an unverification is the stale mark of a verification nobody made.
-      handler: ({ id, ...changes }) => {
-        if (changes.verified_at === undefined) {
+      // The mark and its binding move together, in all three of the states a caller can express.
+      // Omitting `verified` leaves both alone. Asking for it stamps the clock and hashes off the
+      // **stored** row rather than off anything the caller holds: a verification is a statement
+      // about the texts as they are now, and a caller working from a copy read earlier would
+      // otherwise vouch for text that has since moved. Clearing it clears the hash with it — a
+      // binding left behind by an unverification is the stale mark of a verification nobody made.
+      handler: ({ id, verified, ...changes }) => {
+        if (verified === undefined) {
           return update(db, 'coverage', id, changes, 'update_coverage');
         }
 
-        const binding = changes.verified_at === null
-          ? null
-          : bindingHash(db, readById(db, 'coverage', id, 'update_coverage') as Binding);
+        const binding = verified
+          ? bindingHash(db, readById(db, 'coverage', id, 'update_coverage') as Binding)
+          : null;
 
-        return update(db, 'coverage', id, { ...changes, binding_hash: binding }, 'update_coverage');
+        return update(db, 'coverage', id, {
+          ...changes,
+          verified_at: verified ? now() : null,
+          binding_hash: binding,
+        }, 'update_coverage');
       },
     }),
 

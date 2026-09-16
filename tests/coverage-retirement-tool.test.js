@@ -100,7 +100,7 @@ test('retiring twice is refused with the date the decision was made [integration
 test('a retired binding keeps its verification, because the ✓ was true of the text [integration]', (t) => {
   const { db, call } = surface(t);
   const { binding } = bound(db);
-  const row = call.create_coverage({ ...binding(), verified_at: AT });
+  const row = call.create_coverage({ ...binding(), verified: true });
 
   assert.ok(row.binding_hash, 'the server computed a hash over the bound texts');
 
@@ -179,7 +179,7 @@ test('update_coverage declares neither retirement column and refuses both [unit]
 
 // --- Criterion 5, the control: update_coverage still updates what it is for -----------------------
 
-test('update_coverage still sets position and verified_at on the same row [unit]', (t) => {
+test('update_coverage still sets position and records verification on the same row [unit]', (t) => {
   const { db, call } = surface(t);
   const { binding } = bound(db);
   const row = call.create_coverage(binding());
@@ -190,9 +190,9 @@ test('update_coverage still sets position and verified_at on the same row [unit]
 
   assert.equal(moved.position, 3);
 
-  const verified = call.update_coverage({ id: row.id, verified_at: AT });
+  const verified = call.update_coverage({ id: row.id, verified: true });
 
-  assert.equal(verified.verified_at, AT);
+  assert.equal(verified.verified_at, AT, 'the mark is stamped from the server clock');
   assert.ok(verified.binding_hash, 'and the server computed the hash that accompanies the mark');
 
   // And it goes on working on a row that is retired, which is what makes the two concerns separate

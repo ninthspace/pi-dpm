@@ -287,6 +287,8 @@ export const CLASSIFICATION = new Map(Object.entries({
   'do · list_coverage · 8. Epic summary':
     [true, 'the same judgement is made against `spec_fragment`, which is the withheld column'],
   'do · list_coverage · 8. Epic summary #2':
+    [false, 'named only to be refused — *"Do not add up the `dpm_list_coverage` pages by hand"* — so the count is `check_coverage`\'s and no row is read here at all'],
+  'do · list_coverage · 8. Epic summary #3':
     [false, 'the denominator is *"the bindings still standing"* — a count of the rows the call returns, and the fragment is judged by the read above it'],
   'do · list_observation · 8. Epic summary':
     [true, 'the observations are synthesised, and a synthesis of withheld text is a synthesis of nothing'],

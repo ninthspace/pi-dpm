@@ -148,7 +148,7 @@ function workspace(tools) {
   // computed from the bound texts — which is what makes the decay observable at all.
   const coverage = seed.create_coverage({
     requirement_id: requirement.id, story_criterion_id: criterion.id, position: 0,
-    spec_fragment: FRAGMENTS.broken, verified_at: VERIFIED,
+    spec_fragment: FRAGMENTS.broken, verified: true,
   });
 
   // Two more bindings on the same requirement, because "names every binding the amendment broke,
@@ -401,7 +401,8 @@ test('a pivot run amends through update tools and reaches exactly what hangs off
 
 test('an amended criterion loses its verification, and a byte-identical amendment does not', (t) => {
   const db = openPlanningDatabase(t);
-  const tools = spineTools(db);
+  // Pinned to `VERIFIED`: the fixture asks for the mark, and the tool stamps it from this clock.
+  const tools = spineTools(db, { now: () => VERIFIED });
   const { call, used } = recorder(tools);
 
   const fixture = workspace(tools);
@@ -428,7 +429,7 @@ test('an amended criterion loses its verification, and a byte-identical amendmen
   // decays the row on its own: a control that held the criterion and went on amending the
   // requirement cleared the mark anyway and would have read as the trigger being correct.
   const control = openPlanningDatabase(t);
-  const controlTools = spineTools(control);
+  const controlTools = spineTools(control, { now: () => VERIFIED });
   const recorded = recorder(controlTools);
   const unchanged = workspace(controlTools);
 

@@ -265,7 +265,7 @@ function doStage(call, epicId) {
       call.list_story_criterion_approach({ story_criterion_id: criterion.id });
 
       for (const row of call.list_coverage({ story_criterion_id: criterion.id }).items) {
-        call.update_coverage({ id: row.id, verified_at: '2026-08-09T00:00:00.000Z' });
+        call.update_coverage({ id: row.id, verified: true });
       }
     }
 
@@ -278,7 +278,8 @@ function doStage(call, epicId) {
 
 test('spec, epics and do run in sequence and leave one connected graph', (t) => {
   const db = openPlanningDatabase(t);
-  const tools = spineTools(db);
+  // Pinned, because the verification mark is stamped from the server clock rather than named.
+  const tools = spineTools(db, { now: () => '2026-08-09T00:00:00.000Z' });
   const { call, used } = recorder(tools);
 
   const specId = specStage(call);

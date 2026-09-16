@@ -25,6 +25,12 @@
  * by a query afterwards. Step 3 tags every criterion, so a criterion without one is work skipped, and
  * which ones those are is a query like the rest.
  *
+ * **An epic's roll-up is counted here too.** The first MTPLX dpm-do run closed an epic and reported
+ * "12 of the 12 bindings that remain" where the rows held thirteen — it had added up the pages of
+ * `list_coverage` by hand, exactly as the epics run had added up its coverage. `epic_id` scopes the
+ * count and leaves the standings alone: which requirements are gaps is a question about the spec,
+ * and one epic's rows never answer it.
+ *
  * **Deliberately unbounded**, for `check_integrity`'s reason: a truncated gap report is a false pass.
  */
 
@@ -64,7 +70,7 @@ function standing(requirement: Row, coverage: number) {
  * @param {string} specId
  * @returns {object}
  */
-export function coverageReport(db: DatabaseSync, specId: string) {
+export function coverageReport(db: DatabaseSync, specId: string, epicId: string | null = null) {
   const all = (sql: string, ...values: unknown[]) => db.prepare(sql).all(...values as SQLInputValue[]) as Row[];
 
   const spec = db.prepare('SELECT id, kind FROM document WHERE id = ?').get(specId) as Row | undefined;
@@ -91,7 +97,7 @@ export function coverageReport(db: DatabaseSync, specId: string) {
   const requirements = all(`SELECT id, label, class, moscow, exclusion, text FROM requirement
                              WHERE spec_id = ? ORDER BY position`, specId);
   const coverage = all(`SELECT coverage.id, coverage.requirement_id, coverage.spec_fragment,
-                               coverage.story_criterion_id
+                               coverage.story_criterion_id, coverage.verified_at
                           FROM coverage JOIN requirement ON requirement.id = coverage.requirement_id
                          WHERE requirement.spec_id = ? AND coverage.retired_at IS NULL
                          ORDER BY requirement.position, coverage.position`, specId);
@@ -159,6 +165,43 @@ export function coverageReport(db: DatabaseSync, specId: string) {
     .filter((criterion) => !tagged.has(criterion.id))
     .map((criterion) => ({ id: criterion.id, ...located(criterion.id), polarity: criterion.polarity, text: criterion.text }));
 
+  // One epic's bindings, counted. The requirement standings above stay the spec's: an epic that
+  // covers four of sixteen requirements has not turned the other twelve into gaps, and a report
+  // that said so would be wrong in the direction that stops a run.
+  const epicScope = epicId === null ? null : (() => {
+    const epic = db.prepare(`SELECT id, slug, parent_id FROM document
+                              WHERE id = ? AND kind = 'epic'`).get(epicId) as Row | undefined;
+
+    if (!epic) throw new ToolError(`check_coverage: epic_id '${epicId}' names no epic`);
+
+    if (epic.parent_id !== specId) {
+      throw new ToolError(`check_coverage: epic '${epic.slug}' (${epicId}) is not an epic of this spec`);
+    }
+
+    const mine = coverage.filter((row) => located(row.story_criterion_id).epic === epic.slug);
+    const byLabel = new Map<string, { label: string; bindings: number; verified: number }>();
+
+    for (const row of mine) {
+      const label = requirements.find((requirement) => requirement.id === row.requirement_id)?.label ?? row.requirement_id;
+      const seen = byLabel.get(label) ?? { label, bindings: 0, verified: 0 };
+
+      byLabel.set(label, {
+        label,
+        bindings: seen.bindings + 1,
+        verified: seen.verified + (row.verified_at === null ? 0 : 1),
+      });
+    }
+
+    return {
+      id: epic.id,
+      slug: epic.slug,
+      stories: stories.filter((story) => story.epic === epic.slug).length,
+      bindings: mine.length,
+      verified: mine.filter((row) => row.verified_at !== null).length,
+      by_requirement: [...byLabel.values()],
+    };
+  })();
+
   const gaps = [
     ...report.filter((requirement) => requirement.standing === 'gap')
       .map((requirement) => `${requirement.label} has no live coverage`),
@@ -175,6 +218,7 @@ export function coverageReport(db: DatabaseSync, specId: string) {
     requirements: report,
     unaccounted_criteria: unaccounted,
     untagged_criteria: untagged,
+    epic: epicScope,
     must_have_criteria: mustHaves,
     counts: {
       requirements: requirements.length,
@@ -214,17 +258,26 @@ export function coverageCheckTools({ db }: Context): Tool[] {
         + 'could with none; excluded: deferred, out of scope or won\'t), every live story criterion '
         + 'neither bound nor warranted, every one with no approach tag, each must-have\'s spec criteria beside the story criteria '
         + 'covering it for the caller to match, and the counts of epics, stories, criteria, tags, '
-        + 'tasks, coverage and edges. Deliberately unbounded.',
+        + 'tasks, coverage and edges. With `epic_id`, adds that epic\'s own binding count and how '
+        + 'many are verified, per requirement — the roll-up number a skill would otherwise add up by '
+        + 'hand. Deliberately unbounded.',
       reads: ['coverage', 'requirement', 'acceptance_criterion', 'story_criterion', 'story', 'document',
         'story_criterion_approach', 'task', 'coverage_story', 'dependency'],
       mutates: false,
       inputSchema: {
         type: 'object',
         additionalProperties: false,
-        properties: { spec_id: { type: 'string', minLength: 1 } },
+        properties: {
+          spec_id: { type: 'string', minLength: 1 },
+          epic_id: {
+            type: 'string',
+            minLength: 1,
+            description: "One epic of this spec, to count its own bindings — the epic summary's roll-up",
+          },
+        },
         required: ['spec_id'],
       },
-      handler: (args) => coverageReport(db, args.spec_id),
+      handler: (args) => coverageReport(db, args.spec_id, args.epic_id ?? null),
     }),
   ];
 }

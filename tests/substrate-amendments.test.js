@@ -44,10 +44,13 @@ const STATUS = ['pending', 'complete', 'superseded', 'withdrawn'];
 /** The two that are terminal without being completion — the pair the whole story is about. */
 const RETIRED = ['superseded', 'withdrawn'];
 
+/** The server clock, pinned: the coverage tools stamp the verification mark from it. */
+const AT = '2026-08-10T00:00:00.000Z';
+
 const surface = (t) => {
   const db = planning(t);
 
-  return { db, call: handlers(spineTools(db)) };
+  return { db, call: handlers(spineTools(db, { now: () => AT })) };
 };
 
 /** A spec, an epic under it, and a story and task under that — one of every table with a status. */
@@ -377,7 +380,7 @@ test('clearing a verification clears the binding recorded with it', (t) => {
 
   const row = call.create_coverage({
     requirement_id: requirement.id, spec_fragment: 'shall hold',
-    story_criterion_id: criterion.id, position: 0, verified_at: '2026-08-10T00:00:00.000Z',
+    story_criterion_id: criterion.id, position: 0, verified: true,
   });
 
   assert.ok(row.binding_hash, 'a verified row was written without its binding');
@@ -385,16 +388,16 @@ test('clearing a verification clears the binding recorded with it', (t) => {
   // **A hash beside a cleared mark is the residue the decay triggers exist to prevent.** Nothing
   // reads it, and that is precisely the trouble: it is a record of a verification nobody made,
   // sitting where the check for a stale one looks.
-  const unverified = call.update_coverage({ id: row.id, verified_at: null });
+  const unverified = call.update_coverage({ id: row.id, verified: false });
 
   assert.equal(unverified.verified_at, null);
   assert.equal(unverified.binding_hash, null, 'the binding outlived the verification it recorded');
 
   // Omitting it still leaves both alone, which is what makes the clear a decision rather than a
   // side effect of updating the row at all.
-  call.update_coverage({ id: row.id, verified_at: '2026-08-10T00:00:00.000Z' });
+  call.update_coverage({ id: row.id, verified: true });
   const moved = call.update_coverage({ id: row.id, position: 1 });
 
-  assert.equal(moved.verified_at, '2026-08-10T00:00:00.000Z');
+  assert.equal(moved.verified_at, AT);
   assert.ok(moved.binding_hash);
 });

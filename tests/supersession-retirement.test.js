@@ -29,11 +29,15 @@ const REASON = 'FR6a folded this clause into the requirement above it.';
 /** What the trigger writes: its own prefix, then the supersession's own reason. */
 const COMPOSED = `The criterion this bound was superseded: ${REASON}`;
 
-/** The tool surface, by name. Every write in this file goes through it or through the trigger. */
+/**
+ * The tool surface, by name. Every write in this file goes through it or through the trigger.
+ *
+ * The clock is pinned to `AT` because the coverage tools stamp the verification mark from it.
+ */
 function surface(t) {
   const db = planning(t);
 
-  return { db, call: handlers(spineTools(db)) };
+  return { db, call: handlers(spineTools(db, { now: () => AT })) };
 }
 
 /**
@@ -66,7 +70,7 @@ function claimed(call) {
       requirement_id: requirement.id, spec_fragment, story_criterion_id: criterion.id, position,
     });
 
-    return call.update_coverage({ id: row.id, verified_at: AT });
+    return call.update_coverage({ id: row.id, verified: true });
   };
 
   const bindings = [

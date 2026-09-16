@@ -390,9 +390,10 @@ test('verification is set as a pair, and the hash is the servers rather than the
   const { coverage, story_criterion } = chain(call);
 
   // The half-set state the `CHECK` used to be the only guard against is now unreachable from the
-  // tool at all: `verified_at` alone completes itself. What was a refusal is the ordinary call.
-  const whole = call.update_coverage({ id: coverage.id, verified_at: '2026-08-08T00:00:00Z' });
-  assert.equal(whole.verified_at, '2026-08-08T00:00:00Z');
+  // tool at all: `verified: true` completes itself, and the time it records is the server's rather
+  // than whatever the caller believed it to be. What was a refusal is the ordinary call.
+  const whole = call.update_coverage({ id: coverage.id, verified: true });
+  assert.equal(whole.verified_at, STAMP);
 
   // Recomputed here from the two bound texts rather than read from `binding.js`, so a change to
   // what is hashed or to the separator between the halves fails this rather than agreeing with
@@ -404,19 +405,22 @@ test('verification is set as a pair, and the hash is the servers rather than the
   assert.equal(whole.binding_hash, expected,
     'the hash is not over the fragment and the criterion text it binds');
 
-  // And the argument is gone from both coverage tools, which is what makes the hash evidence: a
-  // caller who can supply it can supply anything, and the `CHECK` accepts any string at all.
+  // And both halves are gone from the arguments of both coverage tools, which is what makes the
+  // pair evidence: a caller who can supply either can supply anything, and the `CHECK` accepts any
+  // string at all. The time matters for the same reason the digest does — it can be backdated.
   for (const name of ['create_coverage', 'update_coverage']) {
     const tool = tools.find((entry) => entry.name === name);
 
     assert.ok(!('binding_hash' in tool.inputSchema.properties),
       `${name} lets the caller choose the digest that vouches for its own claim`);
+    assert.ok(!('verified_at' in tool.inputSchema.properties),
+      `${name} lets the caller choose the time its own claim was made`);
   }
 
   // The other direction, and the reason the hash is read off the stored row: editing the criterion
   // clears the pair (FR21's trigger), and re-verifying yields a hash over the *new* text.
   call.update_story_criterion({ id: story_criterion.id, text: 'creating each type writes a row' });
-  const again = call.update_coverage({ id: coverage.id, verified_at: '2026-08-09T00:00:00Z' });
+  const again = call.update_coverage({ id: coverage.id, verified: true });
 
   assert.notEqual(again.binding_hash, expected, 'the ✓ came back over text that had moved');
 });

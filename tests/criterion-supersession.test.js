@@ -18,10 +18,14 @@ import { spineTools } from '../src/tools/index.ts';
 
 const AT = '2026-08-27T00:00:00Z';
 
-/** The tool surface, by name. Every read and every write in this file goes through it. */
+/**
+ * The tool surface, by name. Every read and every write in this file goes through it.
+ *
+ * The clock is pinned to `AT` because the coverage tools stamp the verification mark from it.
+ */
 function surface(t) {
   const db = planning(t);
-  const tools = spineTools(db);
+  const tools = spineTools(db, { now: () => AT });
 
   return { db, tools, call: handlers(tools) };
 }
@@ -53,7 +57,7 @@ function story(call) {
 
   // Verified through the tool, so the hash beside each mark is the server's — which is what makes
   // a cleared mark below observable as a cleared *pair* rather than one column going null.
-  const verified = bindings.map((binding) => call.update_coverage({ id: binding.id, verified_at: AT }));
+  const verified = bindings.map((binding) => call.update_coverage({ id: binding.id, verified: true }));
 
   verified.forEach((row) => assert.ok(row.binding_hash, 'the fixture did not record a verification'));
 

@@ -116,7 +116,7 @@ function workspace(tools) {
     story_criterion_id: done.id,
     spec_fragment: 'A run resumes.',
     position: 0,
-    verified_at: '2026-08-01T00:00:00.000Z',
+    verified: true,
   });
   seed.create_coverage({
     requirement_id: traced.id,
@@ -353,7 +353,7 @@ test('pre-flight probes the hook and branches, and a previous run is offered rat
 
   raw.update_coverage({
     id: before.unverified.find((entry) => !entry.approaches.includes('target')).row.id,
-    verified_at: '2026-08-10T00:00:00.000Z',
+    verified: true,
   });
 
   const after = verdict(call, fixture, fresh.epics);

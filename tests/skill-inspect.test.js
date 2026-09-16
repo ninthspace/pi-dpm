@@ -109,7 +109,7 @@ function workspace(tools) {
       position: index + 2,
       spec_fragment: requirement.text,
     });
-    seed.update_coverage({ id: coverage.id, verified_at: '2026-08-09T00:00:00.000Z' });
+    seed.update_coverage({ id: coverage.id, verified: true });
     // What the spec asked for, which the gap query reads beside what the criterion was tagged.
     const asked = seed.create_acceptance_criterion({
       requirement_id: requirement.id, text: `${name} is tested`, position: 1,

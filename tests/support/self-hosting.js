@@ -279,7 +279,7 @@ export function selfHostingCorpus(call) {
         spec_fragment: requirement.text.split(' ').slice(1, 6).join(' '),
         story_criterion_id: criterion.id,
         position: coveragePosition,
-        verified_at: AT,
+        verified: true,
       });
 
       call.create_coverage_story({ coverage_id: coverage.id, story_id: story.id });

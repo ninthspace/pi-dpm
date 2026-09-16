@@ -17,7 +17,8 @@ const AT = '2026-09-14T00:00:00Z';
 function surface(t) {
   const db = planning(t);
 
-  return { db, call: handlers(spineTools(db)) };
+  // The clock is pinned to `AT`: the coverage tools stamp the verification mark from it.
+  return { db, call: handlers(spineTools(db, { now: () => AT })) };
 }
 
 /** Run something that must be refused, and hand back the error so the message can be read. */
@@ -206,6 +207,45 @@ test('check_coverage names every live criterion with no approach tag as a gap, a
 
   assert.deepEqual(after.untagged_criteria.map((criterion) => criterion.id), [rejection.id]);
   assert.equal(after.gaps.some((gap) => gap.includes('The decision is honoured.')), false);
+});
+
+test('check_coverage counts one epic\'s bindings without moving the spec\'s standings', (t) => {
+  const { call } = surface(t);
+  const { spec, core, extras, binding } = project(call);
+
+  const whole = call.check_coverage({ spec_id: spec.id });
+  const scoped = call.check_coverage({ spec_id: spec.id, epic_id: core.id });
+
+  // The count the summary needs: this epic's live rows, and how many carry a ✓.
+  assert.deepEqual(
+    { bindings: scoped.epic.bindings, verified: scoped.epic.verified, stories: scoped.epic.stories },
+    { bindings: 1, verified: 0, stories: 2 },
+  );
+  assert.deepEqual(scoped.epic.by_requirement, [{ label: 'FR1', bindings: 1, verified: 0 }]);
+
+  const stamped = call.update_coverage({ id: binding.id, verified: true });
+
+  assert.equal(stamped.verified_at, AT, 'the mark is stamped from the server clock');
+  assert.equal(call.check_coverage({ spec_id: spec.id, epic_id: core.id }).epic.verified, 1);
+
+  // The other epic's only binding was retired, so it counts nothing — and neither epic's scope
+  // changes which requirements the spec reports as gaps.
+  assert.equal(call.check_coverage({ spec_id: spec.id, epic_id: extras.id }).epic.bindings, 0);
+  assert.deepEqual(scoped.requirements, whole.requirements, 'the epic scope moved a requirement standing');
+  assert.deepEqual(scoped.gaps, whole.gaps);
+  assert.equal(whole.epic, null, 'an unscoped report carries an epic block');
+});
+
+test('check_coverage refuses an epic that is not this spec\'s, and an id that is no epic', (t) => {
+  const { call } = surface(t);
+  const { spec } = project(call);
+  const elsewhere = call.create_spec({ slug: 'other', title: 'Other' });
+  const stray = call.create_epic({ parent_id: elsewhere.id, slug: 'stray', title: 'Stray' });
+
+  assert.match(refused(() => call.check_coverage({ spec_id: spec.id, epic_id: stray.id })).message,
+    /epic 'stray' \(.+\) is not an epic of this spec/);
+  assert.match(refused(() => call.check_coverage({ spec_id: spec.id, epic_id: spec.id })).message,
+    /epic_id '.+' names no epic/);
 });
 
 test('check_coverage refuses an id that is not a spec, and names what it is', (t) => {

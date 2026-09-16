@@ -31,7 +31,8 @@ This skill uses **Gate Presentation**, **Conversational Output**, **Cross-Refere
    `pending`, and stop. Report a `superseded` or `withdrawn` epic as retired, with its
    `status_note` where it carries one: it is neither work outstanding nor work delivered.
 
-The epic, once resolved, holds for the whole loop.
+The epic, once resolved, holds for the whole run. **One run works one epic** and ends at Step 8; the
+next epic is a run of its own, started when the user asks for it.
 
 ## Startup
 
@@ -194,6 +195,13 @@ If `plan` is `0`, plan inline: a short text plan, then straight on.
 Implement what the task and the story's criteria call for. Minimal change, scoped to the task; solve
 the requirement generally rather than special-casing what a test happens to check.
 
+**Scratch files stay in the project and do not outlive the check they were made for.** A probe
+binary, a sample input, a throwaway script: write them under the working tree, where the repository's
+own ignore rules and the next `git status` account for them, and remove them once the check is made.
+A run that wrote its check binary and three sample CSVs into `/tmp` left them on a machine nobody
+would think to look at, and a reviewer reading the diff cannot see what the verification actually
+ran against.
+
 **When a criterion carries the `tdd` approach**, run red-green-refactor: write a failing test and
 confirm it fails against a targeted run of that file alone; write the minimum that passes it; clean
 up within the task's scope. A test that passes before the implementation exists is a stop — say so
@@ -227,12 +235,14 @@ choice between carrying on and accepting a shortfall is one nobody can make from
 
 **Recording the verification.** When a story's criteria are met, for each criterion call
 `dpm_list_coverage` with its `story_criterion_id` and, for each row, `dpm_update_coverage`
-with `verified_at`.
+with `verified: true`.
 
-That call is the whole of it. **Nothing here writes a table, clears a mark, or computes a hash**:
-the matrix is a projection of these rows, the hash that records *what* was verified is the server's,
-and editing either bound text clears the mark by trigger. A skill re-implementing any of the three
-would be a second answer to a question the database already answers.
+That call is the whole of it. **Nothing here writes a table, clears a mark, computes a hash, or
+types a time**: the matrix is a projection of these rows, the time the mark was made and the hash
+recording *what* was verified are both the server's, and editing either bound text clears the mark
+by trigger. A skill re-implementing any of the four would be a second answer to a question the
+database already answers. An MTPLX run supplied its own `verified_at` — a plausible time it had
+never read off a clock, in the column a later reader trusts to say when the check happened.
 
 ### 5b. Story refactoring pass
 
@@ -262,7 +272,11 @@ a smooth delivery is worth recording as much as a surprise. On an implementation
 is optional — the story's gate will cover it.
 
 **Session.** `dpm_update_session` immediately after, carrying `phase` and the accumulated
-`state`.
+`state`. **The `phase` is the step the run is actually in** — `verify` while verifying, `refactor`
+during the pass, `done` at the close. A run that did the
+work and left the phase at `work` throughout leaves nothing behind saying the verification happened,
+and the phase is the only place a stopped run's successor reads it: the first MTPLX dpm-do run was
+killed mid-story, and what it had recorded was what its continuation could resume from.
 
 Then go straight to Step 7. Finishing a task, a story, or a commit is **not** a checkpoint.
 
@@ -310,9 +324,14 @@ criterion has no title, so a report that listed ids would name nothing anyone ca
 deriving the judgement itself from the coverage rows would report every warranted criterion as a
 gap.
 
-**Say what the count is.** Every verification in it was recorded by this skill on its own work, so
-the summary reports what this run claimed, added up. "Nine of nine rows marked verified by this run"
-is what happened; "nine of nine requirements verified" reads as something someone else confirmed.
+**Say what the count is, and take it from `dpm_check_coverage`** with this spec's `spec_id` and this
+epic's `epic_id`. Its `epic` block counts the epic's live bindings, how many carry a ✓, and both
+again per requirement. **Do not add up the `dpm_list_coverage` pages by hand**: a run that did
+reported "12 of the 12 bindings" for an epic whose rows numbered thirteen, and a miscount in the one
+sentence a reader takes on trust is worse than no sentence. Every verification in it was recorded by
+this skill on its own work, so the summary reports what this run claimed. "Nine of nine rows marked
+verified by this run" is what happened; "nine of nine requirements verified" reads as something
+someone else confirmed.
 
 **And say which nine.** The denominator is the bindings still standing — what
 `dpm_list_coverage` returns, which is the live rows and not every row ever
@@ -351,7 +370,12 @@ A story observation is `dpm-retro`'s input and not a report item: nothing is wai
 for it, and repeating it here is narration. The per-story refactoring outcomes come from the session
 `state` and are dispositioned by the third and first clauses above.
 
-Then offer the next ready epic from `dpm_list_epic` with `ready: true`.
+**Then the run ends.** `dpm_update_session` with `phase: 'complete'`, so no later run is offered this
+one to resume. Name the next ready epic from `dpm_list_epic` with `ready: true` — its title and
+reference, as `/dpm-do` would take it — or say that none is ready and why. **This run does not work
+it, and does not ask whether to**: the user starts that run when they want it, and it opens a session
+of its own. The same holds when this epic stays open — a story still pending, or a retired one
+waiting on its question — and the report says why it stays open.
 
 ## Change moments
 
@@ -419,7 +443,8 @@ gap found in the spec and left for a human — goes in `dpm_create_document_sect
 - **Acceptance criteria gate completion.** Mark a story complete when its criteria are met, or when
   the user explicitly approves it anyway.
 - **No unauthorised checkpoints.** The loop stops only at the gates named here: unmet criteria, an
-  unroutable tag, a blocker, an ambiguous criterion, a change moment, and the epic-end offer.
+  unroutable tag, a blocker, an ambiguous criterion, a change moment, and a retired story at Step 8.
+  It ends at Step 8, after one epic, naming the next rather than asking to start it.
   Task-to-task and story-to-story transitions are silent, and the handoff between stories is that
   transition, not a stop: it asks nothing. Any prompt asking whether to carry on is
   an unauthorised checkpoint however it is worded — "shall I continue?", "ready for the next one?",

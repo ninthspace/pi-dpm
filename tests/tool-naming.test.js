@@ -190,6 +190,40 @@ const REWORDED = [
   },
 ];
 
+/**
+ * Arguments whose *shape* deliberately departs from v0.7.0's, as one property renamed.
+ *
+ * **The third way a surface drifts, and `ADDED`'s shape once more.** `REWORDED` pins the text at a
+ * path and compares it with `assert.equal`, which is right for a description and cannot express
+ * this: a rename removes one key and adds another, so there is no single value to compare. An entry
+ * says which key went, which arrived, and what the new one declares.
+ *
+ * **A pin, not an exemption**, on `REWORDED`'s terms. `from` is checked to be a property v0.7.0
+ * really advertised and `to` to be one it did not, so an entry describing a rename that has since
+ * been reverted fails rather than sitting here exempting a field nobody is changing. The arrived
+ * property is then compared byte-for-byte against `now`, so a second edit to it fails exactly as an
+ * undeclared one does.
+ */
+const RESHAPED = [
+  {
+    // Both coverage tools take the same `STATE` object, so one edit moves two entries here.
+    tools: ['create_coverage', 'update_coverage'],
+    from: 'verified_at',
+    to: 'verified',
+    now: {
+      type: 'boolean',
+      description: 'Record the verification, or clear it with false. The server stamps the time from '
+        + 'its own clock and computes the binding hash that accompanies it',
+    },
+    // An MTPLX do run sent `verified_at: "2026-09-15T19:17:00Z"` — a plausible time it had never read
+    // off a clock, in the column a later reader trusts to say when the check happened. A time chosen
+    // by the party making the claim can be backdated, exactly as a hash it chose would attest to
+    // nothing; both halves of the pair are the server's now, and the caller says only *that* it
+    // verified.
+    why: 'the caller supplied the time of its own verification, and the server now stamps it',
+  },
+];
+
 /** The value at a path, or `undefined` where the path does not lead anywhere. */
 const at = (object, path) => path.reduce((value, key) => (value === undefined ? value : value[key]), object);
 
@@ -205,13 +239,21 @@ const at = (object, path) => path.reduce((value, key) => (value === undefined ? 
  */
 function withRewordings(tool) {
   const applicable = REWORDED.filter((entry) => entry.tools.includes(tool.name));
+  const renames = RESHAPED.filter((entry) => entry.tools.includes(tool.name));
 
-  if (applicable.length === 0) return tool;
+  if (applicable.length === 0 && renames.length === 0) return tool;
 
   const copy = structuredClone(tool);
 
   for (const { at: path, now } of applicable) {
     at(copy, path.slice(0, -1))[path.at(-1)] = now;
+  }
+
+  // Applied to the same copy, and the property that arrives carries `now` rather than the text it
+  // replaced — so the comparison below still reads every byte of it.
+  for (const { from, to, now } of renames) {
+    delete copy.inputSchema.properties[from];
+    copy.inputSchema.properties[to] = now;
   }
 
   return copy;
@@ -251,6 +293,26 @@ test('every tool v0.7.0 advertised is still advertised, byte for byte [integrati
       assert.ok(tool, `${name} is reworded and is not a tool v0.7.0 advertised`);
       assert.equal(at(tool, entry.at), entry.was,
         `${name} is declared as reworded from text v0.7.0 does not carry at ${entry.at.join('.')}`);
+    }
+  }
+
+  // **And each declared rename against the same oracle**, for the reason the rewordings are checked:
+  // an entry left behind by a revert would otherwise go on licensing a change nobody is making.
+  for (const entry of RESHAPED) {
+    assert.ok(entry.why, `the rename of ${entry.tools.join(' and ')} is declared without a reason`);
+    assert.notEqual(entry.from, entry.to, `${entry.tools.join(' and ')} declare a rename that renames nothing`);
+
+    for (const name of entry.tools) {
+      const tool = oracle.find((candidate) => candidate.name === name);
+
+      assert.ok(tool, `${name} is reshaped and is not a tool v0.7.0 advertised`);
+
+      const properties = tool.inputSchema.properties;
+
+      assert.ok(Object.hasOwn(properties, entry.from),
+        `${name} is declared as renaming ${entry.from}, which v0.7.0 does not advertise`);
+      assert.equal(Object.hasOwn(properties, entry.to), false,
+        `${name} is declared as renaming ${entry.from} to ${entry.to}, which v0.7.0 already advertised`);
     }
   }
 

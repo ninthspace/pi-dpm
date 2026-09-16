@@ -175,7 +175,7 @@ const RECIPES: Record<string, (call: Call) => string> = {
     call.create_coverage({
       requirement_id: requirement.id, story_criterion_id: criterion.id, position: 1,
       spec_fragment: 'shall do the thing',
-      verified_at: '2026-01-01T00:00:00.000Z',
+      verified: true,
     });
 
     return call.create_coverage_matrix({

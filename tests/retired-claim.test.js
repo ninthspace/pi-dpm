@@ -76,7 +76,7 @@ function claimed(call, { slug, label }) {
       position,
     });
 
-    return call.update_coverage({ id: binding.id, verified_at: AT });
+    return call.update_coverage({ id: binding.id, verified: true });
   });
 
   bindings.forEach((row) => assert.ok(row.binding_hash, 'the fixture recorded no verification'));

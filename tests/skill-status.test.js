@@ -124,7 +124,7 @@ function workspace(tools) {
     requirement_id: requirement.id, story_criterion_id: criterion.id, position: 1,
     spec_fragment: 'Every skill writes through a typed tool.',
   });
-  seed.update_coverage({ id: coverage.id, verified_at: '2026-08-09T00:00:00.000Z' });
+  seed.update_coverage({ id: coverage.id, verified: true });
 
   const startup = seedStartup(seed, { scope: 'status', skill: 'dpm:status', phase: 'startup' });
 
