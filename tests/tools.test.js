@@ -425,6 +425,22 @@ test('verification is set as a pair, and the hash is the servers rather than the
   assert.notEqual(again.binding_hash, expected, 'the ✓ came back over text that had moved');
 });
 
+test('the completeness claim is the callers, and neither half recording it is [unit]', (t) => {
+  const { tools } = surface(t);
+  const update = tools.find((entry) => entry.name === 'update_requirement');
+
+  // The same pair as the coverage tools above, one table up. A claim is the one thing here no
+  // computation can replace — but a claimant that also chose the time and the digest would be the
+  // only witness to all three, and a claim dated before the set it was made over reads as current.
+  for (const column of ['coverage_claimed_at', 'coverage_claim_hash']) {
+    assert.ok(!(column in update.inputSchema.properties),
+      `update_requirement lets the caller choose ${column} on its own claim`);
+  }
+
+  assert.equal(update.inputSchema.properties.coverage_claimed.type, 'boolean',
+    'the claim is still a date the caller types rather than an act it declares');
+});
+
 // A local model binding a spec sent a fragment to the neighbouring requirement's id, and a gap check
 // counting rows then called both requirements covered. The refusal names where the text is.
 test('create_coverage refuses a fragment its requirement does not contain, naming the one that does', (t) => {

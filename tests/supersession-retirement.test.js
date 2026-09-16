@@ -81,9 +81,10 @@ function claimed(call) {
 
   bindings.forEach((row) => assert.ok(row.binding_hash, 'the fixture did not record a verification'));
 
-  const claim = call.update_requirement({ id: requirement.id, coverage_claimed_at: AT });
+  const claim = call.update_requirement({ id: requirement.id, coverage_claimed: true });
 
   assert.ok(claim.coverage_claim_hash, 'the fixture did not record a claim');
+  assert.equal(claim.coverage_claimed_at, AT, 'the claim carries a time the caller chose');
 
   return { requirement, story, overtaken, standing, bindings, claim };
 }
@@ -200,7 +201,7 @@ test('a requirement claimed before the supersession is unclaimed by it [integrat
 
   // The claim can be made again over what remains, which is the half of FR3 that stops the
   // withdrawal above being a claim nothing can ever restore.
-  call.update_requirement({ id: requirement.id, coverage_claimed_at: AT });
+  call.update_requirement({ id: requirement.id, coverage_claimed: true });
 
   assert.deepEqual(claimState(db, requirement.id), { claimed: true, current: true, bound: 1 });
 });

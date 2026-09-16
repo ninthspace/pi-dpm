@@ -81,7 +81,7 @@ function claimed(call, { slug, label }) {
 
   bindings.forEach((row) => assert.ok(row.binding_hash, 'the fixture recorded no verification'));
 
-  call.update_requirement({ id: requirement.id, coverage_claimed_at: AT });
+  call.update_requirement({ id: requirement.id, coverage_claimed: true });
 
   return { requirement, criteria, bindings };
 }
@@ -127,7 +127,7 @@ test('a claim made after the retirement is current over the remaining bindings [
     .get(requirement.id).hash;
 
   call.retire_coverage({ id: bindings[1].id, reason: 'Bound to a clause that has gone.' });
-  call.update_requirement({ id: requirement.id, coverage_claimed_at: AT });
+  call.update_requirement({ id: requirement.id, coverage_claimed: true });
 
   // **This is the assertion that holds the two halves together.** With the trigger in place and the
   // hash unqualified, the re-claim would store a digest over three rows while the live set is two,

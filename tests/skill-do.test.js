@@ -283,7 +283,7 @@ function run(call, fixture) {
 
   for (const { requirement, rows } of rollUp) {
     if (rows.every((row) => row.verified_at !== null)) {
-      call.update_requirement({ id: requirement.id, coverage_claimed_at: '2026-08-09T00:00:00.000Z' });
+      call.update_requirement({ id: requirement.id, coverage_claimed: true });
     }
   }
 
@@ -650,6 +650,12 @@ test('must NOT — the roll-up count reaches a binding somebody withdrew', (t) =
     raw.read_requirement({ id: fixture.requirement.id }).coverage_claimed_at, null,
     'the claim was withheld over a binding that had already been withdrawn',
   );
+
+  // And the date on that row is the server's. The run says only *that* it claims; one that typed
+  // the time too could date a claim to before the set it read, which is what the digest beside it
+  // has always been withheld to prevent.
+  assert.ok(!passed.get('update_requirement')?.has('coverage_claimed_at'),
+    'the run typed the time its own claim was made');
 });
 
 // --- Spec 50: the report is derived from the rows, and names no label ----------------------------

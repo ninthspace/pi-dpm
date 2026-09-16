@@ -44,15 +44,19 @@ const FIELDS = {
  * A requirement is never born claimed — there is nothing bound to it yet — so putting this in
  * `FIELDS` would give `create_requirement` an argument whose only honest value is absent.
  *
- * `coverage_claim_hash` is not here for the reason `binding_hash` is not on the coverage tools:
- * it is computed by `claimHash` over the bound fragment set, and a digest supplied by the party
- * making the claim records nothing.
+ * **Neither half of the claim is the caller's.** `coverage_claim_hash` is not here for the reason
+ * `binding_hash` is not on the coverage tools: it is computed by `claimHash` over the bound
+ * fragment set, and a digest supplied by the party making the claim records nothing. The date is
+ * gone for the same reason — a claimant who also types the time of its claim can date it to before
+ * the set it says it read, and the pair is then two assertions by one party rather than one
+ * assertion witnessed. The caller says only *that* it claims.
  */
 const CLAIM = {
-  coverage_claimed_at: {
-    type: 'string',
-    description: 'ISO 8601. Claims the bound coverage rows account for this requirement whole; '
-      + 'the server computes the hash over the bound set that accompanies it',
+  coverage_claimed: {
+    type: 'boolean',
+    description: 'Claim that the bound coverage rows account for this requirement whole, or '
+      + 'withdraw the claim with false. The server stamps the time from its own clock and '
+      + 'computes the hash over the bound set that accompanies it',
   },
 };
 
@@ -60,9 +64,10 @@ const CLAIM = {
  * @param {object} context
  * @param {import('node:sqlite').DatabaseSync} context.db
  * @param {() => string} context.newId
+ * @param {() => string} context.now
  * @returns {object[]}
  */
-export function requirementTools({ db, newId }: Context): Tool[] {
+export function requirementTools({ db, newId, now }: Context): Tool[] {
   return [
     defineTool({
       name: 'create_requirement',
@@ -117,15 +122,19 @@ export function requirementTools({ db, newId }: Context): Tool[] {
         + 'or claim that the coverage rows bound to it account for it whole.',
       reads: ['requirement'],
       mutates: true,
+      serverSupplied: {
+        coverage_claimed_at: SUPPLIED.clock,
+        coverage_claim_hash: SUPPLIED.derived('the bound fragment set'),
+      },
       inputSchema: {
         type: 'object',
         additionalProperties: false,
         properties: { id: { type: 'string', minLength: 1 }, ...FIELDS, ...CLAIM },
         required: ['id'],
       },
-      handler: ({ id, coverage_claimed_at: claimedAt, ...changes }) => {
+      handler: ({ id, coverage_claimed: claimed, ...changes }) => {
         if (Object.keys(changes).length > 0) update(db, 'requirement', id, changes, 'update_requirement');
-        else if (claimedAt === undefined) throw new ToolError('update_requirement: nothing to update');
+        else if (claimed === undefined) throw new ToolError('update_requirement: nothing to update');
         // A claim against a requirement that is not there is a boundary rejection like any other,
         // and `claimComplete` raises an internal error rather than one — so the row is reached
         // for here, where the failure has the shape FR3 asks for.
@@ -133,7 +142,10 @@ export function requirementTools({ db, newId }: Context): Tool[] {
 
         // After the edits and never before: `requirement_unclaim_on_text_edit` would clear a claim
         // written first, and the claim is about the set as it stands when this call is finished.
-        if (claimedAt !== undefined) claimComplete(db, id, claimedAt);
+        // `claimComplete` still takes the instant, because a withdrawal is a null date there and
+        // the `CHECK` is written against the pair. The flag is what the caller decides; the clock
+        // is read here, on the server, at the moment the claim is recorded.
+        if (claimed !== undefined) claimComplete(db, id, claimed ? now() : null);
 
         return readById(db, 'requirement', id, 'update_requirement');
       },

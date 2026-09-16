@@ -222,6 +222,23 @@ const RESHAPED = [
     // verified.
     why: 'the caller supplied the time of its own verification, and the server now stamps it',
   },
+  {
+    tools: ['update_requirement'],
+    from: 'coverage_claimed_at',
+    to: 'coverage_claimed',
+    now: {
+      type: 'boolean',
+      description: 'Claim that the bound coverage rows account for this requirement whole, or '
+        + 'withdraw the claim with false. The server stamps the time from its own clock and '
+        + 'computes the hash over the bound set that accompanies it',
+    },
+    // The same defect one table up, found in the same run: the model shelled out to `date -u` for
+    // this one, which is the right instinct and was required by nothing. A claim whose own
+    // timestamp is typed by the claimant is the shape `coverage_claim_hash` was withheld over, and
+    // the two columns are written together by `claimComplete` — so one of the pair being the
+    // server's and the other the caller's was never a position this file could defend.
+    why: 'the caller supplied the time of its own claim, and the server now stamps it',
+  },
 ];
 
 /** The value at a path, or `undefined` where the path does not lead anywhere. */

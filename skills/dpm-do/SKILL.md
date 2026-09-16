@@ -311,7 +311,8 @@ what holds it, and that is the report rather than a status.
 `spec_fragment`s against the requirement's own `text`, and both are withheld by default. A
 requirement whose rows are all verified is discharged as far as the rows go; where the run judges
 the bound fragments account for the requirement whole, say so with
-`dpm_update_requirement` and `coverage_claimed_at`. **That is a claim and not a computation**,
+`dpm_update_requirement` and `coverage_claimed: true` — the server stamps the time it was made and
+hashes the set it was made over. **That is a claim and not a computation**,
 which is why a human makes it: connective prose carries no obligation, and two obligations in one
 sentence can be discharged by a fragment covering either. Leave it unclaimed rather than guess.
 
