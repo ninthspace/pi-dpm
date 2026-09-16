@@ -120,6 +120,7 @@ const ADDED = [
   'delete_coverage_story', // a cross-epic "also delivered by" row was reported and could not be removed
   'delete_dependency', // an edge recorded backwards could be noticed by an epics run and not corrected
   'read_shared_document', // 02-03 story 1 — ADR 02-01, the shared documents through the server
+  'retire_observation', // an MTPLX do run recorded one story's observation twice and could withdraw neither
 ];
 
 /**

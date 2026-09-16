@@ -155,7 +155,7 @@ function project(tools) {
   const startup = seedStartup(seed, {
     scope: 'do',
     skill: 'dpm:do',
-    phase: 'Story 1 Task 1',
+    phase: 'work',
     live: [
       'The token store had an index nobody expected.',
       'A story spanning four components ran to twice its estimate.',
@@ -241,7 +241,7 @@ function run(call, fixture) {
     for (const task of tasks) {
       call.read_task({ id: task.id });
       call.update_session({
-        id: startup.session, phase: `Story ${story.number} Task ${task.number}`, state: '{}',
+        id: startup.session, phase: 'work', state: JSON.stringify({ task: task.number }),
       });
       call.update_task({ id: task.id, status: 'complete' });
     }
@@ -581,6 +581,66 @@ test('a run works one epic, closes its session, and names the next epic without 
 
   assert.equal(guidelines.includes('epic-end offer'), false, 'the next epic is still a gate this run acts on');
   assert.match(guidelines, /after one epic, naming the next rather than asking to start it/);
+});
+
+// --- The phase, which two MTPLX runs recorded differently from each other ------------------------
+
+/** The ids the front matter declares — the only values `extensions/dpm/phases.ts` will record. */
+const DECLARED = /^phases:(.*)$/m.exec(source)[1].trim().split(/\s+/);
+
+test('every phase the body records is one the front matter declares', () => {
+  const written = [...source.matchAll(/phase: '([a-z-]+)'/g)].map((match) => match[1]);
+
+  // The control, named rather than counted — the same reason the retirement sweep names its tables.
+  // A count passes just as well when one step loses its phase and another gains a second, and this
+  // file instructed exactly two of these before the steps below were given theirs.
+  //
+  // **The four declared ids missing here are not an omission.** `load`, `plan`, `work` and
+  // `summary` reach a run through the phase note `extensions/dpm/phases.ts` injects when the skill
+  // opens, which is why the front matter declares more than the prose instructs: the note carries
+  // the whole list, and the prose names an id only where a run was seen to lose one.
+  assert.deepEqual([...new Set(written)].sort(),
+    ['complete', 'done', 'next', 'refactor', 'select', 'start', 'verify'],
+    'a step gained or lost the phase it records');
+
+  for (const id of written) {
+    // `complete` is every skill's last phase and is deliberately *not* declared — `planFor` refuses
+    // a skill that lists it. Anything else outside the list is refused at the call, and the write
+    // is lost along with the value, so a typo here costs the record rather than the spelling.
+    if (id === 'complete') continue;
+
+    assert.ok(DECLARED.includes(id), `a step records phase "${id}", which this skill does not declare`);
+  }
+});
+
+test('the steps a run passes through each record the phase they are entering', () => {
+  // Story 1 of an MTPLX run recorded `verify` and `refactor`; story 2 recorded neither, and neither
+  // story ever recorded `done` or `next`. The instruction to write them lived only in Step 6, which
+  // is *after* verifying — so a phase naming the step in flight was written once the step was over,
+  // when it was written at all.
+  const steps = [['2. Start', 'start'], ['5. Verify', 'verify'], ['5b. Story refactoring pass', 'refactor'],
+    ['6. Complete', 'done'], ['7. Next task', 'next']];
+
+  for (const [heading, id] of steps) {
+    assert.ok(section(source, heading).includes(`phase: '${id}'`),
+      `${heading} does not record its own phase, so a run stopping in it resumes from the step before`);
+  }
+
+  // The other half of the same defect, and the reason it cost the write rather than the wording:
+  // this file told the run to put the task in `phase`, which the runtime refuses outright.
+  assert.equal(source.includes('putting the task about to'), false,
+    'the task is back in `phase`, where a value outside the declared list is refused');
+});
+
+test('a story produces one observation, and a duplicate can be taken back', () => {
+  const step = section(source, '6. Complete');
+
+  assert.ok(step.includes('**one observation, and one only**'),
+    'nothing holds a story to a single observation');
+  assert.ok(step.includes('`dpm_list_observation` with this `story_id` first'),
+    'the run cannot find the observation it wrote a turn ago, which is how it wrote a second');
+  assert.ok(step.includes('`dpm_retire_observation`'),
+    'a duplicate already written has no way back — where an MTPLX run was left, with no tool in its allowance');
 });
 
 // --- Epic 04-05 Story 3: the roll-up counts the bindings that remain -----------------------------

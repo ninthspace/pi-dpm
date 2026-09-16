@@ -356,8 +356,9 @@ test('retirement is not offered as a column an update can set or clear', (t) => 
   const named = new Set(tools.map((tool) => tool.name));
 
   // Scoped to the tables that have a retire *verb*, and derived rather than listed. `observation`
-  // also carries `retired_at` and is deliberately not among them: a spent retro lesson is retired
-  // by `cpm:retro retire` setting the column, and there the update tool is the intended path.
+  // is the one that carries both: `retire_observation` for a run taking back a duplicate, and the
+  // column for `dpm-retro`, which sets it in the same call as `library_doc_id` so a promoted lesson
+  // cannot be linked without being retired. The loop below is what that costs.
   const withVerb = tools.filter((tool) => tool.name.startsWith('update_')
     && named.has(tool.name.replace('update_', 'retire_')));
 
@@ -366,10 +367,18 @@ test('retirement is not offered as a column an update can set or clear', (t) => 
   // failure this would have reported is "5, not 4", on a change that is either correct or a serious
   // mistake depending entirely on the name.
   assert.deepEqual(withVerb.map((tool) => tool.table).sort(),
-    ['agent', 'coverage', 'dependency_kind', 'taxonomy', 'test_approach'],
+    ['agent', 'coverage', 'dependency_kind', 'observation', 'taxonomy', 'test_approach'],
     'a table gained or lost a retirement verb');
 
   for (const tool of withVerb) {
+    // **The exception, and it is the atomicity that buys it.** `dpm-retro` promotes a lesson by
+    // writing `library_doc_id` with `retired_at` and `retired_reason` together, and a promotion
+    // that linked the document in one call and retired the source in another would leave a lesson
+    // offerable twice if the run stopped between them. So the column stays reachable here — where
+    // every other table on this list would be accepting a way to undo its own retirement by
+    // mistyping an update. `update_observation` is v0.7.0's besides, and the surface is a floor.
+    if (tool.table === 'observation') continue;
+
     assert.equal(Object.hasOwn(tool.inputSchema.properties, 'retired_at'), false,
       `${tool.name} offers retired_at, so a mistyped update could undo a retirement`);
   }

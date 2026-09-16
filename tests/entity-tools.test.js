@@ -483,3 +483,58 @@ test('a read or update tool named for a kind refuses a document of another kind'
   assert.equal(call.read_spec({ id: spec.id }).updated_at, before);
   assert.equal(call.read_epic({ id: epic.id }).title, 'Parity and search');
 });
+
+// --- Withdrawal: a duplicate observation taken back, and the clock that says when ----------------
+
+/** What the pinned surface below stamps — a value no caller passes, so it can only be the clock's. */
+const WITHDRAWN = '2026-09-16T11:00:00.000Z';
+
+/** The surface `surface` gives, with the clock pinned so a stamp can be asserted. */
+function stamped(t) {
+  const db = openPlanningDatabase(t);
+
+  return { db, call: handlers(spineTools(db, { now: () => WITHDRAWN })) };
+}
+
+test('a duplicate observation is withdrawn by its own verb, stamped from the server clock', (t) => {
+  const { call } = stamped(t);
+  const { story } = roots(call);
+
+  const kept = call.create_observation({ story_id: story.id, text: 'The harness was reused as-is.' });
+  const duplicate = call.create_observation({
+    story_id: story.id, position: 1, text: 'The harness was reused as-is.',
+  });
+
+  const gone = call.retire_observation({
+    id: duplicate.id, reason: 'A second row saying what the first already says.',
+  });
+
+  assert.equal(gone.retired_at, WITHDRAWN, 'the withdrawal carries a time the caller chose');
+  assert.equal(gone.retired_reason, 'A second row saying what the first already says.');
+
+  // Readable afterwards, which is the whole difference between withdrawing and deleting: the reason
+  // exists to be found, and a reader asking why a retro counted one observation and not two has
+  // nowhere else to look.
+  assert.equal(call.read_observation({ id: duplicate.id, include_body: true }).text,
+    'The harness was reused as-is.');
+
+  // And the row that was kept is untouched. A withdrawal reaching both would leave the story with
+  // no observation at all — which `dpm-retro` reads as a story that observed nothing, not as one
+  // whose record was taken back.
+  assert.equal(call.read_observation({ id: kept.id }).retired_at, null);
+});
+
+test('retiring an observation twice is reported rather than silently moving the date', (t) => {
+  const { call } = stamped(t);
+  const { story } = roots(call);
+
+  const observation = call.create_observation({ story_id: story.id, text: 'Recorded once.' });
+
+  call.retire_observation({ id: observation.id, reason: 'Withdrawn.' });
+
+  const again = refused(() => call.retire_observation({ id: observation.id, reason: 'Again.' }));
+
+  assert.match(again.message, /already retired at/);
+  assert.equal(call.read_observation({ id: observation.id }).retired_at, WITHDRAWN,
+    'the second call moved the date the decision was made');
+});

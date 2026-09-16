@@ -290,6 +290,8 @@ export const CLASSIFICATION = new Map(Object.entries({
     [false, 'named only to be refused — *"Do not add up the `dpm_list_coverage` pages by hand"* — so the count is `check_coverage`\'s and no row is read here at all'],
   'do · list_coverage · 8. Epic summary #3':
     [false, 'the denominator is *"the bindings still standing"* — a count of the rows the call returns, and the fragment is judged by the read above it'],
+  'do · list_observation · 6. Complete':
+    [false, 'the story produces *"one observation, and one only"*, and whether it already carries one is answered by a row coming back at all — not by what the row says'],
   'do · list_observation · 8. Epic summary':
     [true, 'the observations are synthesised, and a synthesis of withheld text is a synthesis of nothing'],
   'do · list_story_criterion · 8. Epic summary':

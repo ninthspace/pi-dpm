@@ -19,8 +19,9 @@
 
 import type { Context, Tool } from '../convention.ts';
 
-import { SUPPLIED } from '../convention.ts';
+import { defineTool, SUPPLIED, ToolError } from '../convention.ts';
 import { entityTools } from '../entity.ts';
+import { readById, update } from '../crud.ts';
 
 /** `finding.status`'s `CHECK` set, copied by hand from `006-review-retro.sql`. */
 const FINDING_STATUS = ['open', 'accepted', 'rejected', 'remediated'];
@@ -109,6 +110,57 @@ export function reviewRetroTools(context: Context): Tool[] {
         quick_kind: pinned(args.quick_id, 'quick'),
         library_doc_kind: pinned(args.library_doc_id, 'library'),
       }),
+    }),
+
+    // **Withdrawal is its own verb here for the reason it is one on `coverage`.** The pair is
+    // reachable through `update_observation` as well, which v0.7.0 advertised and this port holds
+    // byte-for-byte — but that path takes the date from whoever is withdrawing, and a party
+    // recording when it changed its own mind is the shape `verified_at` and `coverage_claimed_at`
+    // were both taken away from. This one reads the clock, so the two columns move together and
+    // neither is the caller's.
+    //
+    // It exists because a run needed it and did not have it: an MTPLX do run wrote a story's
+    // observation twice, noticed, and found nothing in its allowance that could take one back —
+    // and an observation is `dpm-retro`'s only input, so a duplicate is counted twice by the one
+    // skill that reads them.
+    defineTool({
+      name: 'retire_observation',
+      table: 'observation',
+      description: 'Withdraw an observation, with the reason it was withdrawn. The row stays '
+        + 'readable and stops being offered as a retro\'s input. Not reversible through the tools.',
+      reads: ['observation'],
+      mutates: true,
+      serverSupplied: { retired_at: SUPPLIED.clock },
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', minLength: 1 },
+          reason: {
+            type: 'string',
+            minLength: 1,
+            description: 'Why it was withdrawn — a duplicate of one already recorded, or an '
+              + 'observation that turned out to be about the run rather than the work. Required',
+          },
+        },
+        required: ['id', 'reason'],
+      },
+      handler: (args) => {
+        const where = 'retire_observation';
+        const row = readById(context.db, 'observation', args.id, where);
+
+        // Reported rather than silently restamped, as `retire_coverage` and `retire_taxonomy` both
+        // do it: retiring twice is a caller that has lost track, and moving the date would erase
+        // when the decision was made.
+        if (row.retired_at !== null) {
+          throw new ToolError(`${where}: already retired at ${row.retired_at}`);
+        }
+
+        return update(context.db, 'observation', args.id, {
+          retired_at: context.now(),
+          retired_reason: args.reason,
+        }, where);
+      },
     }),
 
     ...entityTools(context, {

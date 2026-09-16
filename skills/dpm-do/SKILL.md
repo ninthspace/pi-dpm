@@ -38,8 +38,14 @@ next epic is a run of its own, started when the user asks for it.
 
 ### Session
 
-Follow the shared **Session Startup** procedure with `skill: 'dpm:do'`, putting the task about to
-start in `phase` and moving it on after every completed task.
+Follow the shared **Session Startup** procedure with `skill: 'dpm:do'`, putting the id of the step
+about to start in `phase` and moving it on as each step opens.
+
+**The ids are this file's steps, and nothing else is accepted**: `load`, `start`, `plan`, `work`,
+`verify`, `refactor`, `done`, `next`, `select` when a handoff hands the next story on, `summary` at
+Step 8, and `complete` once the run is over. Which task is in flight is `state`'s to carry, not
+`phase`'s — a phase outside that list is refused and nothing is recorded, so a task name written
+there loses the write as well as the place.
 
 `state` holds the epic this run resolved, the test command, the framework, the retro lessons the gate
 applied with how each changes the run, the per-story record of what the refactoring pass did, and the
@@ -167,10 +173,10 @@ Explore the code the task touches before planning it, carrying the applied retro
 
 ### 2. Start
 
-**Being in flight is the session's `phase`, not a status.** `dpm_update_session` names the
-task about to start; the row itself moves from pending to complete in one step at Step 6, because
-there is no value between them. One place says what is happening now, and it is the place a resumed
-run reads.
+**Being in flight is the session's `phase`, not a status.** `dpm_update_session` with
+`phase: 'start'`, and the task about to start named in `state`; the row itself moves from pending to
+complete in one step at Step 6, because there is no value between them. One place says what is
+happening now, and it is the place a resumed run reads.
 
 **The other two values this run does not set.** `superseded` says the work was replaced and
 `withdrawn` says it was dropped — both terminal, and both a decision rather than an outcome of
@@ -213,6 +219,11 @@ that adds an approach decides for itself which axis it is on.
 
 ### 5. Verify
 
+`dpm_update_session` with `phase: 'verify'` before the first criterion is assessed, and not
+afterwards. **A phase recorded once the step is over is a phase nobody could have resumed from** —
+an MTPLX run verified eight criteria under its second story with the phase still reading `work`,
+so the only record that the verification ever happened was the coverage rows it left behind.
+
 For each of the story's criteria, assess it by the approach its tags name:
 
 - **A `level` a machine can run** — run the cached test command. Passing is the evidence; failing
@@ -246,6 +257,10 @@ never read off a clock, in the column a later reader trusts to say when the chec
 
 ### 5b. Story refactoring pass
 
+`dpm_update_session` with `phase: 'refactor'` as the pass opens, **including the run that is about
+to skip it**: the skip and its reason are what `state` carries, and a phase that never reached
+`refactor` cannot be told from a run that never got this far.
+
 Once per completed story, at its verification gate, and not gated on the verification result — a
 story whose criteria were unmet-but-continued still earns its pass.
 
@@ -264,25 +279,35 @@ after, and revert whatever broke.
 **Status.** `dpm_update_task` with `status: 'complete'`. At a verification gate,
 `dpm_update_story` the same way.
 
-**Observation.** Every completed story produces one, and it is the only input `dpm-retro` has to
-work with. `dpm_create_observation` with this `story_id` and the text, then
-`dpm_create_observation_category` with the category's `taxonomy_id` from
-`dpm_list_taxonomy`. Use the vocabulary the project holds rather than a list of names here;
-a smooth delivery is worth recording as much as a surprise. On an implementation task an observation
-is optional — the story's gate will cover it.
+**Observation.** Every completed story produces **one observation, and one only**, and it is the
+only input `dpm-retro` has to work with. `dpm_list_observation` with this `story_id` first: where
+the story already carries one, this step is done, and a second category goes on the row that is
+there rather than on a row of its own. `dpm_create_observation` with this `story_id` and the text,
+then `dpm_create_observation_category` with the category's `taxonomy_id` from
+`dpm_list_taxonomy` — once per category, all of them against the same `observation_id`. Use the
+vocabulary the project holds rather than a list of names here; a smooth delivery is worth recording
+as much as a surprise. On an implementation task an observation is optional — the story's gate will
+cover it.
 
-**Session.** `dpm_update_session` immediately after, carrying `phase` and the accumulated
-`state`. **The `phase` is the step the run is actually in** — `verify` while verifying, `refactor`
-during the pass, `done` at the close. A run that did the
-work and left the phase at `work` throughout leaves nothing behind saying the verification happened,
-and the phase is the only place a stopped run's successor reads it: the first MTPLX dpm-do run was
+**Two rows saying one thing is a miscount at the only place that reads them**, since `dpm-retro`
+synthesises what it is given and cannot know the second was the first rewritten. An MTPLX run wrote
+its second story's observation twice, a turn apart, and covered the duplicate by giving each row a
+different category — which reads afterwards as two findings. Where it has already happened,
+`dpm_retire_observation` with the `id` and the reason withdraws one: the row stays readable and
+stops being offered as input, and the server stamps when it went.
+
+**Session.** `dpm_update_session` with `phase: 'done'` immediately after, carrying the accumulated
+`state`. **Each step records its own id as it opens, and this is the last of them** — Step 5 wrote
+`verify` and Step 5b wrote `refactor`, so nothing here is catching up on either. The phase is the
+only place a stopped run's successor reads where the work reached: the first MTPLX dpm-do run was
 killed mid-story, and what it had recorded was what its continuation could resume from.
 
 Then go straight to Step 7. Finishing a task, a story, or a commit is **not** a checkpoint.
 
 ### 7. Next task
 
-Silent. The next pending task under this story. **When there is none, the story is over, and it ends
+Silent, apart from the phase: `dpm_update_session` with `phase: 'next'`, then back to Step 1 for the
+next pending task under this story. **When there is none, the story is over, and it ends
 with the handoff** that **Session** describes: `dpm_update_session` with `phase: 'select'` and the
 state the continued run needs, then the shared procedure. The continued run takes the next ready story
 from **Story selection**, or goes to Step 8. No summary, and no asking whether to carry on — the
