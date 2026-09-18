@@ -324,17 +324,29 @@ twenty-three skill bodies has no boundary anyone can find afterwards.
 So it goes in an overlay instead, and `DPM_PROFILE` selects one:
 
 ```sh
-DPM_PROFILE=opus            # appends shared/advice/opus/ to the documents it names
+DPM_PROFILE=opus-5          # appends shared/advice/opus-5/ to the documents it names
 ```
 
 Each profile is a directory under `shared/advice/`, holding a file named after the shared document
-it extends — `shared/advice/opus/skill-conventions.md` is appended to the conventions every skill
+it extends — `shared/advice/opus-5/skill-conventions.md` is appended to the conventions every skill
 opens by reading. The base document is always served whole; the overlay follows it under its own
 heading, and the active profile comes back with the content so a run records which advice it was
 given. A name with no directory behind it is refused at startup rather than ignored.
 
+**A profile is a model version, not a model family.** What an overlay holds is an observed habit,
+and habits do not survive a release untested — so the match is exact and there is no fallback from
+`opus-5.1` to `opus-5` to `opus`. A new version gets its own directory, copied from the last one and
+read line by line, and `git diff --no-index shared/advice/opus-5 shared/advice/opus-5.1` is then the
+record of what changed. Inheritance would save that reading, which is the reading.
+
 Switching models is then one file to write and one directory to delete. `npm run skills` fails the
 build if a model name finds its way back into a skill body.
+
+One thing the mechanism does *not* do, because it cannot: an overlay is appended, so it can qualify
+the base's advice but never remove it. That is only safe while the base is model-neutral. A base
+carrying one model's accommodations unmarked forces every other profile to argue with it in prose —
+and asking a model to resolve a contradiction between two paragraphs is the failure this seam exists
+to avoid. Keep the invariants in the server, the method in the base, and the habits in `advice/`.
 
 ## About the host and the runtime
 

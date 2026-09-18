@@ -163,7 +163,7 @@ test('the packed tarball carries the plugin entry, the skills, shared and the ex
     EXECUTABLES, 'the executables in the tarball are not the five');
   // **Read recursively, because `shared/` stopped being flat.** The advice overlays sit under
   // `shared/advice/<profile>/`, and a non-recursive listing compares `advice` the directory against
-  // `advice/opus/skill-conventions.md` the file — two spellings of different things, which is a
+  // `advice/opus-5/skill-conventions.md` the file — two spellings of different things, which is a
   // failure that says nothing. Recursing also makes the claim the stronger one: every overlay ships
   // too, and a profile that reached the tree without reaching the tarball would be a run configured
   // for advice it silently never receives.

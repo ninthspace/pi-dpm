@@ -195,4 +195,3 @@ same record.
   asked for. Where a smaller change does the job, prefer it.
 - **Solve generally, not to the test.** Write for the whole range of valid inputs rather than the
   examples a test happens to name. Tests are evidence, not the specification.
-- **Correct yourself sparingly**, per the shared convention.

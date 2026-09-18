@@ -91,7 +91,7 @@ finding rather than a failure.
 
 Work through the phases **one at a time**, one gate per turn, each with the `question` tool.
 
-**A gate is two steps, and the first one is the one that gets dropped.** Render what is being
+**A gate is two steps.** Render what is being
 decided in the message body; *then* call `question` with the decision alone. A gate arriving with
 nothing above it asks the user to approve something they have not been shown.
 
@@ -250,4 +250,3 @@ rows never claim a visual a reader cannot reach.
 - **Operational architecture is architecture.** Deployment, monitoring, failure and security get the
   same rigour as structure.
 - **One decision at a time** in Phase 3, and one gate per decision in Phase 6.
-- **Correct yourself sparingly**, per the shared convention.

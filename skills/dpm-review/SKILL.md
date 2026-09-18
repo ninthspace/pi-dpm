@@ -226,4 +226,3 @@ publication time, then `dpm_create_artifact_document` binding it to this review.
 - **Find comprehensively, then curate.** Step 3's two stages are not a formality.
 - **Match depth to scope**, and treat the counts in Step 3 as what the ranking aims at rather than
   what the finding stage stops at.
-- **Correct yourself sparingly**, per the shared convention.

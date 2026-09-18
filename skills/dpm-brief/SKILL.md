@@ -70,7 +70,7 @@ Follow the shared **Retro Awareness** procedure. If incorporated:
 
 Work through the phases **one at a time**, one gate per turn, each with the `question` tool.
 
-**A gate is two steps, and the first one is the one that gets dropped.** Render what is being
+**A gate is two steps.** Render what is being
 decided in the message body; *then* call `question` with the decision alone. A gate arriving with
 nothing above it asks the user to approve something they have not been shown.
 
@@ -205,4 +205,3 @@ claim a visual a reader cannot reach.
 - **Product, not project.** What it is and why it matters — not timelines, teams or delivery.
 - **Concrete over abstract.** Phases 4 and 6 both turn on this: a proposition has to be falsifiable
   and a differentiation has to concede something.
-- **Correct yourself sparingly**, per the shared convention.

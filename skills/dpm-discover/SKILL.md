@@ -63,7 +63,7 @@ it most directly. A greenfield project has none, which is a finding rather than 
 
 Work through the phases **one at a time**, one gate per turn, each with the `question` tool.
 
-**A gate is two steps, and the first one is the one that gets dropped.** Render what is being
+**A gate is two steps.** Render what is being
 decided in the message body; *then* call `question` with the decision alone. A gate arriving with
 nothing above it asks the user to approve something they have not been shown.
 
@@ -164,4 +164,3 @@ claim a visual a reader cannot reach.
 - **Stay curious.** Follow up where an answer is vague or an assumption looks risky.
 - **One phase at a time**, and match depth to the problem.
 - **Refuse rather than record an outcome nobody can check.** Phase 4 turns on this.
-- **Correct yourself sparingly**, per the shared convention.

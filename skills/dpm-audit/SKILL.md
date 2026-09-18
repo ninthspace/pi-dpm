@@ -262,4 +262,3 @@ publication time, then `dpm_create_artifact_document` binding it to this audit.
 - **Severity is a judgement, not a flourish.** An audit where everything is critical has ranked
   nothing.
 - **Find comprehensively, then curate.** Steps 2 and 3 are not a formality.
-- **Correct yourself sparingly**, per the shared convention.

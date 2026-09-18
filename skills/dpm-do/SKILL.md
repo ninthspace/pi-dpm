@@ -495,4 +495,3 @@ gap found in the spec and left for a human — goes in `dpm_create_document_sect
 - **Every value is an argument, never a formatted string.** A status, a note, a planning mark, a
   disposition and a verification are each a column.
 - **Readiness is a query.** Ask which stories are ready; never maintain the answer.
-- **Correct yourself sparingly**, per the shared convention.

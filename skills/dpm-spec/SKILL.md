@@ -110,7 +110,7 @@ above reaches sections and a step inside a section is not one. Work through such
 a time, one gate per turn. A rendered proposal is not an approved one, and a turn that ends on one
 has recorded nothing and asked nothing.
 
-**Every one of those gates is two steps, and the first one is the one that gets dropped.** Render
+**Every one of those gates is two steps.** Render
 what is being decided in the message body; *then* call `question` with the decision alone. The
 failure has no error in it — a gate arriving with nothing above it reads as a run awaiting an
 answer, while the user is being asked to approve something they have not been shown.
@@ -146,7 +146,7 @@ Give each requirement its `FRn` label as it is agreed, numbered once across must
 rather than restarting under each — the label is what the user refers to for the rest of the
 session.
 
-The draft is two steps, and the first is the one that gets dropped:
+The draft is two steps:
 
 1. **Render the requirements in the message body**, every one of them, grouped under must, should,
    could and won't, each with its `FRn` label and its full text as it will be recorded.
@@ -421,4 +421,3 @@ claim a visual a reader cannot reach.
   approach are each a column. The moment one becomes a prefix on some text, whatever reads it next
   has to parse it back out — and a parse that can misread is a parse that will.
 - **Refuse rather than record something nobody can check.** Step 3a and Step 6b both turn on this.
-- **Correct yourself sparingly**, per the shared convention.

@@ -61,6 +61,34 @@
  * profile's file is appended under its own heading, and `profile` comes back with the content so
  * the run records which advice it was given. Switching models is then one file, and deleting the
  * old advice is one directory.
+ *
+ * ## What additive does and does not protect
+ *
+ * It is tempting to say a profile cannot weaken a rule because it can only append. That is too
+ * strong, and the shipped `opus-5` overlay is the counterexample: two of its sections exist to walk
+ * back base guidance — restatement at every handoff, the per-story handoff cadence — that was
+ * written for context pressure a long-window model does not have. Prose can argue with prose, and
+ * an overlay that qualifies the body is doing its job.
+ *
+ * The real protection is one level down: **the things that must not be weakened are not in prose at
+ * all.** A story does not close over a pending task because `update_story` refuses it, not because
+ * a document says so. Prose that an overlay can qualify was always advice; a rule an overlay could
+ * damage should not have been prose in the first place.
+ *
+ * Which gives the constraint this seam depends on: **the base has to be model-neutral.** A base
+ * carrying one model's accommodations unmarked forces every other profile to contradict it rather
+ * than extend it, and resolving a contradiction between two paragraphs is exactly the judgement a
+ * weak model does not reliably have. `npm run skills` catches accommodations that *name* a model;
+ * it cannot catch the ones that never said so, and those are found by reading.
+ *
+ * ## A profile is a version, not a family
+ *
+ * `opus-5` and `opus-5.1` are different profiles and neither falls back to the other. An overlay
+ * holds observed habits, and carrying them into the next release asserts a measurement nobody took
+ * — so the resolver matches exactly, `.` is an ordinary character in a directory name rather than a
+ * separator it reads meaning into, and an unbuilt version is refused by name instead of quietly
+ * served its predecessor's advice. The cost is that a new release starts as a copy read line by
+ * line, and that reading is the point rather than the overhead.
  */
 
 import type { Tool } from './convention.ts';

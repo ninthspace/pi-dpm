@@ -180,8 +180,8 @@ If `dpm_list_agent` returns nothing, skip perspectives and carry on.
 
 ## Conversational Output
 
-Aim for the shortest response that does the job. A skill's product is the rows it writes and the
-artefact rendered from them; the conversation around it is scaffolding.
+A skill's product is the rows it writes and the artefact rendered from them; the conversation around
+it is scaffolding.
 
 Between gates the useful shapes are: the content itself followed by the gate; one line recording
 what was decided and where it went; the step and what it found rather than the process; and
@@ -232,13 +232,6 @@ qualify, both structural: a `target` criterion, whose environment nobody here ha
 with no control, where nothing available can make the check fail. A reason about how the run went —
 the tests fail, it was not implemented, there was no time — is **Needs you** instead, however
 genuinely it blocked you.
-
-### Correcting yourself
-
-Narrate a correction to something said earlier when the error would change the user's conclusions
-or decisions. When it would not, make the correction and carry on without remarking on it. A
-running commentary on your own earlier wording spends attention the user was giving to the decision
-in front of them.
 
 ## Written Deliverable Length
 
@@ -301,10 +294,7 @@ confirmed and never the default.
    be written, the artifact has not earned its place.
 4. **The artifact is a view, never a source.** Nothing reads it back; the rows remain the record.
 
-## A Closing Note on Length and Tone
-
-Say what the step found and what happens next, then stop. Where two phrasings carry the same
-meaning, use the shorter one.
+## A Closing Note on Tone
 
 Keep the tone plain and direct, warm enough to be good company across a long facilitation. State
 confidence where the evidence supports it and uncertainty where it does not; neither needs padding.

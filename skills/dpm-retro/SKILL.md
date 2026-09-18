@@ -274,5 +274,4 @@ publication time, then `dpm_create_artifact_document` binding it to this retro.
 - **Works without observations.** Story outcomes alone make a useful retro.
 - **Promotion is graduation, not duplication.** A lesson lives in one place — the retro layer until
   it proves durable, then the library.
-- **Retirement is deliberate and reversible**, and never a substitute for "not relevant here".
-- **Correct yourself sparingly**, per the shared convention.
+- **Retirement is deliberate and durable**, and never a substitute for "not relevant here".

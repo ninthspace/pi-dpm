@@ -1,21 +1,31 @@
-# Opus
+# Opus 5
 
 Advice about how this model works. Nothing here is a rule about what the record must hold — those
 are in the conventions above and in the server, and they do not change when the model does.
 
+**The profile is a version, not a family.** Everything below is an observed habit of this model, and
+a habit is not inherited by the next release — an overlay carried forward untested asserts something
+about a model nobody has watched. A new version gets its own directory, copied from this one and
+read line by line; `git diff --no-index shared/advice/opus-5 shared/advice/opus-5.1` is then the
+record of what actually changed between them.
+
 ## Length has to be asked for
 
 Default responses run longer than earlier models', and lowering the effort level does not reliably
-shorten them. Length responds to being asked for, so the conventions' brevity rules are not
-self-enforcing here: between gates, aim at the shortest response that does the job and check it
-against that before sending, rather than trusting the setting.
+shorten them. Length responds to being asked for, so brevity is not self-enforcing here and has to
+be checked against before sending rather than trusted to a setting.
+
+**Aim for the shortest response that does the job.** Between gates, that is the conventions' four
+shapes and nothing around them. **Say what the step found and what happens next, then stop.** Where
+two phrasings carry the same meaning, use the shorter one.
 
 ## Narrate a correction only when it changes a decision
 
-This model reaches for self-correction readily. Correct a mistake that would change what the reader
-concludes or decides, and say so plainly. Correct a slip in phrasing silently and carry on — in a
-facilitated conversation a running commentary on your own earlier wording spends attention the
-reader was giving to the gate in front of them.
+This model reaches for self-correction readily. Narrate a correction to something said earlier when
+the error would change the reader's conclusions or decisions, and say so plainly. When it would not,
+make the correction and carry on without remarking on it — in a facilitated conversation a running
+commentary on your own earlier wording spends attention the reader was giving to the gate in front
+of them.
 
 ## Do what was asked and stop
 

@@ -296,7 +296,7 @@ test('with no profile the base document is served whole and unchanged [unit]', (
   const root = withAdvice(t, {
     'skill-conventions.md': 'base conventions\n',
     'status-model.md': 'statuses\n',
-  }, { 'opus/skill-conventions.md': 'answers run long\n' });
+  }, { 'opus-5/skill-conventions.md': 'answers run long\n' });
 
   const answer = read('skill-conventions', root);
 
@@ -308,9 +308,9 @@ test('an active profile appends its overlay under a heading, and names itself [u
   const root = withAdvice(t, {
     'skill-conventions.md': 'base conventions\n',
     'status-model.md': 'statuses\n',
-  }, { 'opus/skill-conventions.md': 'answers run long\n' });
+  }, { 'opus-5/skill-conventions.md': 'answers run long\n' });
 
-  const answer = read('skill-conventions', root, 'opus');
+  const answer = read('skill-conventions', root, 'opus-5');
 
   // The base is served **whole**, and the overlay follows it. Composed rather than substituted is
   // the decision the file turns on: a profile serving its own copy would be a second statement of
@@ -321,7 +321,7 @@ test('an active profile appends its overlay under a heading, and names itself [u
   assert.match(answer.content, /answers run long/);
 
   // Named in the answer, so a run can say which advice it was given and a transcript records it.
-  assert.equal(answer.profile, 'opus');
+  assert.equal(answer.profile, 'opus-5');
 
   // And the heading says the guidance is advice rather than a rule, which is the distinction the
   // whole seam rests on — a reader who takes it for a rule has lost the reason it is separable.
@@ -334,28 +334,40 @@ test('a profile with no overlay for a document serves that document unchanged [u
   const root = withAdvice(t, {
     'skill-conventions.md': 'base conventions\n',
     'status-model.md': 'statuses\n',
-  }, { 'opus/skill-conventions.md': 'answers run long\n' });
+  }, { 'opus-5/skill-conventions.md': 'answers run long\n' });
 
-  const answer = read('status-model', root, 'opus');
+  const answer = read('status-model', root, 'opus-5');
 
   assert.equal(answer.content, 'statuses\n');
-  assert.equal(answer.profile, 'opus', 'the profile is still what is active');
+  assert.equal(answer.profile, 'opus-5', 'the profile is still what is active');
 });
 
 test('an unknown profile is refused when the tool is built, naming the profiles that exist [unit]', (t) => {
   const root = withAdvice(t, {
     'skill-conventions.md': 'base\n',
     'status-model.md': 'statuses\n',
-  }, { 'opus/skill-conventions.md': 'advice\n', 'lite/skill-conventions.md': 'advice\n' });
+  }, { 'opus-5/skill-conventions.md': 'advice\n', 'opus-5.1/skill-conventions.md': 'advice\n' });
 
   // **Refused at build, not on first read.** A run that planned half an epic before discovering its
   // conventions never arrived is the silent omission ADR 02-01 chose a tool to avoid, one level up.
   assert.throws(() => built(root, 'opsu'), (error) => {
     assert.match(error.message, /no advice profile named 'opsu'/);
-    assert.match(error.message, /lite, opus/, 'the refusal does not name the profiles that exist');
+    assert.match(error.message, /opus-5, opus-5\.1/, 'the refusal does not name the profiles that exist');
 
     return true;
   });
+
+  // **Two releases of one model, and the resolver separates them.** A profile is a version, not a
+  // family: the advice in it is an observed habit, and a habit does not carry forward to the next
+  // release untested. So the match is exact — `opus-5` is not a prefix of anything, `opus-5.1` is
+  // its own directory, and a dot in the name is a character like any other rather than a separator
+  // the resolver reads meaning into. There is deliberately no fallback from `opus-5.1` to `opus-5`:
+  // inheriting advice is asserting a measurement nobody took.
+  assert.equal(read('skill-conventions', root, 'opus-5.1').profile, 'opus-5.1');
+  assert.throws(() => built(root, 'opus'), /no advice profile named 'opus'/,
+    'a family name resolved to a version, so advice would be inherited across releases');
+  assert.throws(() => built(root, 'opus-5.2'), /no advice profile named 'opus-5\.2'/,
+    'an unbuilt version resolved to an older one rather than being refused');
 
   // An empty value is not a name — it is how a variable that was unset in one shell and exported
   // empty in another reads, and both mean "no profile".
@@ -368,21 +380,23 @@ test('a package with no advice directory at all serves every document [unit]', (
   const root = packageTree(t, {}, { 'skill-conventions.md': 'base\n', 'status-model.md': 'statuses\n' });
 
   assert.equal(read('skill-conventions', root).content, 'base\n');
-  assert.throws(() => built(root, 'opus'), /No profile exists/);
+  assert.throws(() => built(root, 'opus-5'), /No profile exists/);
 });
 
-test('the shipped opus overlay is advice, and the base conventions name no model [unit]', () => {
+test('the shipped opus-5 overlay is advice, and the base conventions name no model [unit]', () => {
   // The two halves of the boundary, asserted against the real tree. `npm run skills` enforces the
   // second on every body; this is the one file where the first has to be true as well, because an
   // overlay that restated a record rule would put back the interleaving in a new place.
-  const overlay = readFileSync(join(SHARED, ADVICE, 'opus', 'skill-conventions.md'), 'utf8');
+  const overlay = readFileSync(join(SHARED, ADVICE, 'opus-5', 'skill-conventions.md'), 'utf8');
 
-  assert.match(overlay, /^# Opus/m, 'the overlay does not say which model it is for');
+  // **A version, not a family.** The heading has to carry the release, because the advice under it
+  // is an observed habit of that release and the directory it sits in is what a run selects by.
+  assert.match(overlay, /^# Opus 5/m, 'the overlay does not say which release it is for');
 
   // **The disclaimer is asserted on what the model receives, not on the file.** `overlay()` writes
   // it for every profile, so no author of a future overlay can leave it out — which is the whole
   // reason it is in the wrapper and not a convention each file is trusted to follow.
-  assert.match(read('skill-conventions', undefined, 'opus').content,
+  assert.match(read('skill-conventions', undefined, 'opus-5').content,
     /never a rule about what the record must hold/);
 
   // And the base carries no model name, which is what makes deleting the overlay a complete

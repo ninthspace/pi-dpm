@@ -106,7 +106,7 @@ Gate each step with the `question` tool, converging in one or two rounds. Where 
 after one clarification round, present a recommended structure and record the decision as
 provisional in the session `state`; it can be revised before execution begins.
 
-**Every one of those gates is two steps, and the first one is the one that gets dropped.** Render
+**Every one of those gates is two steps.** Render
 what is being decided in the message body; *then* call `question` with the decision alone. A gate
 arriving with nothing above it asks the user to approve something they have not been shown.
 The loop makes that easy to drop: tags, then tasks, then coverage, each gate straight after the
@@ -589,4 +589,3 @@ procedure. It is separately confirmed and never the default.
   reads it next has to parse it back out — and a parse that can misread is a parse that will.
 - **Refuse rather than record something nobody can check**, and refuse rather than bind a criterion
   to a requirement whose text does not support it.
-- **Correct yourself sparingly**, per the shared convention.
