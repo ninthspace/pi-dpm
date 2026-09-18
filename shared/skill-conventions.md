@@ -7,6 +7,30 @@ A skill reads this document with `dpm_read_shared_document` and `name: "skill-co
 Each procedure names the small part that is genuinely per-skill — the scope keyword, what the
 session `state` must hold, what an incorporated lesson changes — and the skill states that part.
 
+## What these conventions assume about their reader
+
+**They are conservative defaults: they assume the least.** Every procedure below is written for a
+reader with a short effective context, no memory between turns and an expensive turn — so it reads
+rather than remembers, hands off rather than accumulates, and states a rule again where the step
+needs it. Following them costs time; it does not cost correctness. That asymmetry is why they are
+the defaults, and why a run told nothing about its model still behaves safely.
+
+**A model-specific section may follow at the end of this document, and it may relax any default
+here.** Where it does, it is the one that applies — it is there because somebody measured that model
+and found a default unnecessary, and a caution known to be unnecessary is only cost. Read it as
+permission rather than as a contradiction to resolve.
+
+**What it may never do is change what the record must hold.** Those rules live in the server: they
+refuse rather than advise, and nothing appended to this document reaches them. A story does not
+close over a pending task because `dpm_update_story` refuses it, not because a document asks.
+
+**And one class of rule here is not a caution, so it is not a profile's to lift**: reading a row back
+rather than reporting the call that wrote it, taking a count from the report that computed it, and
+passing an id as the tool returned it. Those are not accommodations for a forgetful reader — they are
+what makes the record the answer rather than one account of it, and they hold for a reader that
+forgets nothing. A profile may say a caution is unnecessary for its model. It may not say the record
+is.
+
 ## Session Startup
 
 Every skill's run is one `session` row, and nothing else on disk records where it reached.
@@ -127,15 +151,15 @@ labels, and long content is truncated there.
    user does not see, and not only in an earlier message, which is no longer the one being answered.
    **Every gate renders its own draft, including the one straight after another gate.** The next
    decision worked out in reasoning after an answer is not rendered until it is copied into the
-   reply — an MTPLX epics run blocked five gates in a row on exactly that. **A draft put up for
+   reply. **A draft put up for
    approval is rendered as its items** — the stories, criteria or tags themselves, as a list or a
    table. A sentence about the draft is not the draft, and the host refuses a gate asking for approval
    whose message has neither a list nor a table.
 2. **Then call `question`**, carrying only the decision — "Approve" / "Request changes" / "Stop",
    or "Choose A / B / C".
 
-**Step 1 is the one that gets dropped**, and a gate with nothing above it asks the user to approve
-something they have not been shown.
+**A gate with nothing above it asks the user to approve something they have not been shown**, which
+is what step 1 exists to prevent.
 
 **An approved decision is carried out, not asked again.** Once a gate is approved, write what it
 approved before the next gate. The host refuses a gate with the same `header` as one approved until

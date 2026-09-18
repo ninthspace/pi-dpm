@@ -325,6 +325,7 @@ So it goes in an overlay instead, and `DPM_PROFILE` selects one:
 
 ```sh
 DPM_PROFILE=opus-5          # appends shared/advice/opus-5/ to the documents it names
+DPM_PROFILE=qwen3.8-27b     # the local 27B this port was driven against
 ```
 
 Each profile is a directory under `shared/advice/`, holding a file named after the shared document
@@ -342,11 +343,34 @@ record of what changed. Inheritance would save that reading, which is the readin
 Switching models is then one file to write and one directory to delete. `npm run skills` fails the
 build if a model name finds its way back into a skill body.
 
-One thing the mechanism does *not* do, because it cannot: an overlay is appended, so it can qualify
-the base's advice but never remove it. That is only safe while the base is model-neutral. A base
-carrying one model's accommodations unmarked forces every other profile to argue with it in prose —
-and asking a model to resolve a contradiction between two paragraphs is the failure this seam exists
-to avoid. Keep the invariants in the server, the method in the base, and the habits in `advice/`.
+### The base is a floor, not a neutral
+
+An overlay is appended, so it can qualify the base's advice but never delete it — which raises the
+question of what the base should say when it cannot know its reader. The answer here is not a
+neutral base but a **conservative** one: the conventions assume a reader with a short effective
+context, no memory between turns and an expensive turn, so they read rather than remember, hand off
+rather than accumulate, and restate a rule where the step needs it.
+
+That choice is made on an asymmetry. **Following a conservative default costs time; it does not cost
+correctness.** A base tuned for a capable model fails the other way — a weaker one loses scaffolding
+it needed, and loses it silently. So the defaults are the safe reading, and a run told nothing about
+its model behaves as though its model needed all of them.
+
+An overlay carries two kinds of guidance and they behave differently. **Habits** are things a model
+does that the conventions do not anticipate, so they add a caution — and a profile may consist of
+nothing else. `qwen3.8-27b` is that case: the conventions' conservative assumptions all hold for it,
+so it has nothing to lift and carries only the four habits five driven runs exposed.
+
+**Relaxations** are the other kind, and they are what the floor exists to make safe. A profile's job
+is to **grant** them, not to correct mistakes. The conventions say
+outright that where the model-specific section relaxes a default, that section is what applies — so
+an overlay qualifying the base is a declared precedence rather than a contradiction the model has to
+resolve by judgement. An overlay's relaxations each name the default they lift, which is what makes
+deleting the file put the conservative behaviour back rather than leave a gap.
+
+The one thing no profile may touch is what the record must hold. Those rules are server refusals,
+not prose, and nothing appended to a shared document reaches them. Invariants in the server, the
+conservative method in the base, habits and relaxations in `advice/`.
 
 ## About the host and the runtime
 

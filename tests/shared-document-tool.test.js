@@ -22,7 +22,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 
@@ -402,4 +402,70 @@ test('the shipped opus-5 overlay is advice, and the base conventions name no mod
   // And the base carries no model name, which is what makes deleting the overlay a complete
   // removal rather than the start of a search.
   assert.doesNotMatch(readFileSync(join(SHARED, 'skill-conventions.md'), 'utf8'), /\bopus\b/i);
+});
+
+test('the base declares itself a conservative floor, and says a profile may lift it [unit]', () => {
+  // **The contract the whole seam rests on, asserted where the model reads it rather than where a
+  // maintainer does.** The README carries the same reasoning, but a README is not in the context:
+  // what decides how a run treats an overlay is what arrives in the conventions.
+  const base = read('skill-conventions').content;
+
+  // The floor, and the asymmetry that justifies it. A base tuned for a capable reader fails by
+  // withdrawing scaffolding a weaker one needed; this one fails by costing time. That is the whole
+  // argument for the defaults being what they are, so it is the sentence worth pinning.
+  assert.match(base, /conservative defaults: they assume the least/i,
+    'the conventions no longer declare themselves a floor, so a profile has nothing to lift');
+  assert.match(base.replace(/\s+/g, ' '), /costs time; it does not cost correctness/i,
+    'the asymmetry that justifies the defaults is gone, leaving them looking arbitrary');
+
+  // **Precedence, which is the half that makes an overlay usable.** Without it, a relaxation reads
+  // as a paragraph contradicting the one above it, and resolving that is the judgement a weak
+  // reader does not reliably have — the failure the seam exists to avoid, reintroduced by the seam.
+  assert.match(base.replace(/\s+/g, ' '), /may relax any default here.*it is the one that applies/is,
+    'the conventions no longer grant precedence, so an overlay is a contradiction to resolve');
+
+  // And the bound on it, which is why granting that precedence is safe at all.
+  assert.match(base.replace(/\s+/g, ' '), /never do is change what the record must hold/i,
+    'the conventions no longer bound what a profile may touch');
+});
+
+test('every relaxation in a shipped overlay names the default it lifts [unit]', () => {
+  // **The property that makes deleting a profile safe.** A relaxation is the one kind of advice that
+  // leaves something behind when removed: withdraw a habit and the reader simply stops being warned,
+  // but withdraw a relaxation and the default it was lifting has to come back. It can only come back
+  // if the file said which one it was — so the naming is not documentation, it is the undo.
+  //
+  // Read from the directory rather than from a list here, so a profile added later is held to this
+  // without anyone remembering to add it.
+  const profiles = readdirSync(join(SHARED, ADVICE), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+
+  assert.ok(profiles.length > 0, 'no profile was read, so this checks nothing');
+
+  for (const profile of profiles) {
+    for (const file of readdirSync(join(SHARED, ADVICE, profile))) {
+      const body = readFileSync(join(SHARED, ADVICE, profile, file), 'utf8');
+
+      // A profile carrying only habits is the ordinary case, not a fault — it has nothing to undo.
+      if (!body.includes('## Relaxations')) continue;
+
+      const relaxations = body.slice(body.indexOf('## Relaxations'));
+      let seen = 0;
+
+      // Each `###` under Relaxations carries a `Lifts:` line or names the convention it comes from.
+      // Anything else is a relaxation whose removal leaves a hole nobody can find.
+      for (const [, heading, section] of relaxations.matchAll(/^### (.+)$([\s\S]*?)(?=^### |\Z)/gm)) {
+        seen += 1;
+        assert.match(section, /Lifts:|\*\*[A-Z][a-z]+\*\*|`dpm-[a-z]+`/,
+          `${profile}/${file}: the relaxation "${heading}" does not name the default it lifts`);
+      }
+
+      // **The reading is counted before it is trusted.** A heading pattern that stopped matching
+      // would iterate nothing and report every relaxation compliant, which is the false pass this
+      // project keeps rediscovering — and here it would license exactly the file the check exists
+      // to refuse: a relaxation whose removal leaves a default nobody can find their way back to.
+      assert.ok(seen > 0,
+        `${profile}/${file}: a Relaxations section was found but no relaxation was read from it`);
+    }
+  }
 });

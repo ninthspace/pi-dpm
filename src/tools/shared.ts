@@ -75,11 +75,25 @@
  * a document says so. Prose that an overlay can qualify was always advice; a rule an overlay could
  * damage should not have been prose in the first place.
  *
- * Which gives the constraint this seam depends on: **the base has to be model-neutral.** A base
- * carrying one model's accommodations unmarked forces every other profile to contradict it rather
- * than extend it, and resolving a contradiction between two paragraphs is exactly the judgement a
- * weak model does not reliably have. `npm run skills` catches accommodations that *name* a model;
- * it cannot catch the ones that never said so, and those are found by reading.
+ * Which raises what the base should say when it cannot know its reader. The answer is not a neutral
+ * base but a **conservative** one, and the reason is an asymmetry: **following a conservative
+ * default costs time, not correctness.** A base tuned for a capable model fails the other way — a
+ * weaker one silently loses scaffolding it needed. So the conventions assume the least, and a run
+ * told nothing about its model behaves safely.
+ *
+ * A profile therefore **grants relaxations** rather than correcting mistakes, and the conventions
+ * say outright that where the model-specific section relaxes a default, that section is what
+ * applies. That precedence is the part that matters: without it an overlay qualifying the base is a
+ * contradiction the reader must resolve by judgement, which is the one thing a weak reader cannot
+ * be relied on for. With it, the same text is permission.
+ *
+ * Two consequences worth keeping. An overlay's relaxations each name the default they lift, so that
+ * deleting the file restores the conservative behaviour rather than leaving a gap. And the reason
+ * this is safe at all is the paragraph above: what must not be relaxed is not prose, so no overlay
+ * can reach it however it is worded.
+ *
+ * `npm run skills` catches guidance that *names* a model; it cannot catch a default that was
+ * quietly tuned for one, and those are found by reading.
  *
  * ## A profile is a version, not a family
  *
@@ -160,8 +174,10 @@ function overlay(directory: string, profile: string | null, stem: string): strin
 
   return `\n\n${ADVICE_HEADING}\n\n`
     + `The guidance below applies to the \`${profile}\` profile and to no other. It is advice about `
-    + 'how this model works, never a rule about what the record must hold — those are in the body '
-    + 'above and in the server, and they do not vary.\n\n'
+    + 'how this model works, and where it relaxes a default stated above, it is the guidance that '
+    + 'applies — read it as permission rather than as a contradiction to resolve. It is never a rule '
+    + 'about what the record must hold: those live in the server, they refuse rather than advise, '
+    + 'and nothing here reaches them.\n\n'
     + readFileSync(file, 'utf8').trim();
 }
 
