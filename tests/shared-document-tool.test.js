@@ -27,7 +27,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 
 import { SHARED_DIRECTORY } from '../src/plugin/root.ts';
-import { sharedDocumentTools } from '../src/tools/shared.ts';
+import { ADVICE, sharedDocumentTools } from '../src/tools/shared.ts';
 import { spineTools } from '../src/tools/index.ts';
 import { openPlanningDatabase } from './support/planning-database.js';
 import { filesUnder } from './support/sources.js';
@@ -39,10 +39,18 @@ const SHARED = join(ROOT, SHARED_DIRECTORY);
 /** The two documents the package ships, read from the directory rather than named here. */
 const NAMED = ['skill-conventions', 'status-model'];
 
-/** The tool, built over a root of the caller's choosing. */
-const built = (root) => sharedDocumentTools(root ? { root } : {})[0];
+/**
+ * The tool, built over a root of the caller's choosing.
+ *
+ * **The profile is pinned empty rather than inherited**, so every assertion below is about the base
+ * document. `DPM_PROFILE` set in a contributor's shell would otherwise append an overlay to the
+ * content and turn the byte-equality tests red for a reason that has nothing to do with them. The
+ * profile tests at the foot of this file pass their own.
+ */
+const built = (root, profile = '') =>
+  sharedDocumentTools({ ...(root ? { root } : {}), profile })[0];
 
-const read = (name, root) => built(root).handler({ name });
+const read = (name, root, profile) => built(root, profile).handler({ name });
 
 // --- Criterion 1: the bytes, and the refusal ------------------------------------------------------
 
@@ -198,7 +206,15 @@ function duplicatesOf(root, shared) {
   const digest = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
   const originals = new Map();
 
-  for (const path of filesUnder(shared)) originals.set(digest(path), path);
+  // **The originals are the documents `shared/` serves, which is the flat layer and not the tree
+  // under it.** `filesUnder` recurses, so an overlay in `shared/advice/<profile>/` was registering
+  // itself as an original and then matching itself as a copy — a self-report, and one that would
+  // have masked the reading this function exists for. Narrowed here rather than filtered at the
+  // call site, so the overlay stays *eligible* to be caught: paste the base conventions into an
+  // overlay and it is a byte-identical copy of an original, reported like any other.
+  for (const path of filesUnder(shared).filter((path) => dirname(path) === shared)) {
+    originals.set(digest(path), path);
+  }
 
   return filesUnder(root)
     .filter((path) => dirname(path) !== shared && originals.has(digest(path)))
@@ -236,6 +252,140 @@ test('must NOT — a second copy of either shared document exists anywhere in th
   // The controls on that emptiness, both directions. The sweep reaches a lot of files, and the
   // originals it compares against are the two that exist.
   assert.ok(filesUnder(ROOT).length > 100, 'the sweep walked almost nothing');
-  assert.deepEqual(filesUnder(SHARED).map((path) => relative(SHARED, path)).sort(),
-    NAMED.map((name) => `${name}.md`));
+
+  // **`shared/advice/` is excluded here and nowhere else.** An overlay is named after the document
+  // it extends, so `advice/opus/skill-conventions.md` sits beside `skill-conventions.md` under a
+  // name that matches — and it is not a second copy of it: it holds the model-specific half, is
+  // appended to the base rather than served instead of it, and the duplicate sweep above is over
+  // the whole tree and still reports nothing, which is what says so. Excluding them from this
+  // *census* keeps the assertion about the documents the package serves; leaving them in the sweep
+  // is what would catch an overlay that had been filled with a copy of its own base.
+  const documents = filesUnder(SHARED)
+    .map((path) => relative(SHARED, path))
+    .filter((path) => !path.startsWith(`${ADVICE}/`) && !path.startsWith(`${ADVICE}\\`))
+    .sort();
+
+  assert.deepEqual(documents, NAMED.map((name) => `${name}.md`));
+});
+
+// --- The advice overlay: model guidance that is added, never edited in ---------------------------
+
+/**
+ * A package tree with an advice overlay planted under `shared/advice/<profile>/`.
+ *
+ * `packageTree` writes flat names into `shared/`, so the nested directories are made here rather
+ * than by widening it for one caller.
+ */
+function withAdvice(t, documents, advice) {
+  const root = packageTree(t, {}, documents);
+
+  for (const [path, source] of Object.entries(advice)) {
+    const file = join(root, SHARED_DIRECTORY, ADVICE, path);
+
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, source);
+  }
+
+  return root;
+}
+
+test('with no profile the base document is served whole and unchanged [unit]', (t) => {
+  // **The default is the whole of the default.** An overlay that leaked into an unprofiled read
+  // would be model guidance reaching every run of every model — the state this seam exists to end,
+  // reintroduced by the seam itself.
+  const root = withAdvice(t, {
+    'skill-conventions.md': 'base conventions\n',
+    'status-model.md': 'statuses\n',
+  }, { 'opus/skill-conventions.md': 'answers run long\n' });
+
+  const answer = read('skill-conventions', root);
+
+  assert.equal(answer.content, 'base conventions\n');
+  assert.equal(answer.profile, null);
+});
+
+test('an active profile appends its overlay under a heading, and names itself [unit]', (t) => {
+  const root = withAdvice(t, {
+    'skill-conventions.md': 'base conventions\n',
+    'status-model.md': 'statuses\n',
+  }, { 'opus/skill-conventions.md': 'answers run long\n' });
+
+  const answer = read('skill-conventions', root, 'opus');
+
+  // The base is served **whole**, and the overlay follows it. Composed rather than substituted is
+  // the decision the file turns on: a profile serving its own copy would be a second statement of
+  // every convention in the base, free to drift from it at the first edit.
+  assert.ok(answer.content.startsWith('base conventions\n'),
+    'the base document was replaced rather than extended');
+  assert.match(answer.content, /## Model-specific guidance/);
+  assert.match(answer.content, /answers run long/);
+
+  // Named in the answer, so a run can say which advice it was given and a transcript records it.
+  assert.equal(answer.profile, 'opus');
+
+  // And the heading says the guidance is advice rather than a rule, which is the distinction the
+  // whole seam rests on — a reader who takes it for a rule has lost the reason it is separable.
+  assert.match(answer.content, /never a rule about what the record must hold/);
+});
+
+test('a profile with no overlay for a document serves that document unchanged [unit]', (t) => {
+  // Advice is cross-cutting: a profile carries an overlay for the conventions every body reads and
+  // usually nothing for the status vocabulary. A missing overlay is the ordinary case, not a fault.
+  const root = withAdvice(t, {
+    'skill-conventions.md': 'base conventions\n',
+    'status-model.md': 'statuses\n',
+  }, { 'opus/skill-conventions.md': 'answers run long\n' });
+
+  const answer = read('status-model', root, 'opus');
+
+  assert.equal(answer.content, 'statuses\n');
+  assert.equal(answer.profile, 'opus', 'the profile is still what is active');
+});
+
+test('an unknown profile is refused when the tool is built, naming the profiles that exist [unit]', (t) => {
+  const root = withAdvice(t, {
+    'skill-conventions.md': 'base\n',
+    'status-model.md': 'statuses\n',
+  }, { 'opus/skill-conventions.md': 'advice\n', 'lite/skill-conventions.md': 'advice\n' });
+
+  // **Refused at build, not on first read.** A run that planned half an epic before discovering its
+  // conventions never arrived is the silent omission ADR 02-01 chose a tool to avoid, one level up.
+  assert.throws(() => built(root, 'opsu'), (error) => {
+    assert.match(error.message, /no advice profile named 'opsu'/);
+    assert.match(error.message, /lite, opus/, 'the refusal does not name the profiles that exist');
+
+    return true;
+  });
+
+  // An empty value is not a name — it is how a variable that was unset in one shell and exported
+  // empty in another reads, and both mean "no profile".
+  assert.equal(read('skill-conventions', root, '').profile, null);
+});
+
+test('a package with no advice directory at all serves every document [unit]', (t) => {
+  // The overlay is optional, and a tree that predates it is the common case rather than a broken
+  // one — every install of dpm before this release.
+  const root = packageTree(t, {}, { 'skill-conventions.md': 'base\n', 'status-model.md': 'statuses\n' });
+
+  assert.equal(read('skill-conventions', root).content, 'base\n');
+  assert.throws(() => built(root, 'opus'), /No profile exists/);
+});
+
+test('the shipped opus overlay is advice, and the base conventions name no model [unit]', () => {
+  // The two halves of the boundary, asserted against the real tree. `npm run skills` enforces the
+  // second on every body; this is the one file where the first has to be true as well, because an
+  // overlay that restated a record rule would put back the interleaving in a new place.
+  const overlay = readFileSync(join(SHARED, ADVICE, 'opus', 'skill-conventions.md'), 'utf8');
+
+  assert.match(overlay, /^# Opus/m, 'the overlay does not say which model it is for');
+
+  // **The disclaimer is asserted on what the model receives, not on the file.** `overlay()` writes
+  // it for every profile, so no author of a future overlay can leave it out — which is the whole
+  // reason it is in the wrapper and not a convention each file is trusted to follow.
+  assert.match(read('skill-conventions', undefined, 'opus').content,
+    /never a rule about what the record must hold/);
+
+  // And the base carries no model name, which is what makes deleting the overlay a complete
+  // removal rather than the start of a search.
+  assert.doesNotMatch(readFileSync(join(SHARED, 'skill-conventions.md'), 'utf8'), /\bopus\b/i);
 });

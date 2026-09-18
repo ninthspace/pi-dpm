@@ -41,6 +41,26 @@
  * somewhere. It goes to `withinPackage`, which asks whether the resolved path climbs out of
  * `shared/` — the `relative`-based reading library lesson 04 argues for, rather than a blacklist of
  * characters, which is the form of this check that is wrong in whichever direction nobody tested.
+ *
+ * ## The advice overlay
+ *
+ * **Guidance that is true *because of the model* gets appended here, and is never edited into a
+ * skill body.** The distinction is the one the whole seam exists for: a rule about what the record
+ * must hold — a story does not close over a pending task — is true whoever is writing, belongs in
+ * the body or in the server, and does not vary. Advice about how a particular model behaves — that
+ * its answers run long unless brevity is asked for, that a rule bears restating at a handoff — is
+ * true until the model changes, and then it is wrong and nobody can find it.
+ *
+ * That is not hypothetical. cpm's own `skill-conventions.md` carries *"Opus 5's default responses
+ * run longer than prior models'"* inline and unconditionally, and plain dpm has been swept by hand
+ * on every model change. Twenty-three bodies with the two kinds of prose interleaved and nothing
+ * marking which is which is a sweep every time, and a sweep is where the model-independent rules
+ * get edited by mistake.
+ *
+ * So an overlay is **additive, separate, and named**: the base document is always served whole, the
+ * profile's file is appended under its own heading, and `profile` comes back with the content so
+ * the run records which advice it was given. Switching models is then one file, and deleting the
+ * old advice is one directory.
  */
 
 import type { Tool } from './convention.ts';
@@ -53,6 +73,108 @@ import { defineTool, ToolError } from './convention.ts';
 
 /** The extension every shared document carries, and the part a caller does not type. */
 const SUFFIX = '.md';
+
+/** Where the per-profile overlays live, one directory per profile, under `shared/`. */
+export const ADVICE = 'advice';
+
+/** The variable naming the active profile. Unset is the whole of the default. */
+export const PROFILE_VARIABLE = 'DPM_PROFILE';
+
+/** The heading an overlay is appended under, so a reader can see where the base stopped. */
+const ADVICE_HEADING = '## Model-specific guidance';
+
+/**
+ * The profiles `shared/advice/` holds, read from the directory for `stems`' reason.
+ *
+ * @param directory The package's `shared/`.
+ * @returns {string[]} Sorted, so a refusal reads the same way twice.
+ */
+const profiles = (directory: string): string[] => {
+  const advice = join(directory, ADVICE);
+
+  if (!existsSync(advice)) return [];
+
+  return readdirSync(advice, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+};
+
+/**
+ * The overlay for one document under the active profile, or `''` where there is none.
+ *
+ * **Appended to the base rather than replacing it, and that is the decision this file turns on.**
+ * A profile that served its *own* copy of `skill-conventions.md` would be a second statement of
+ * every convention in it, and the two would agree until the first edit — the failure `stems` above
+ * refuses for the document list, one level up. Composing leaves one canonical body and makes the
+ * model-specific part a thing you can read on its own, which is what makes it a thing you can
+ * delete when the model changes. That deletion is the whole point: the guidance a model needs is
+ * the guidance that goes stale, and prose edited *into* twenty-three bodies has no boundary anyone
+ * can find a year later.
+ *
+ * **A profile with no overlay for a document is not an error.** Advice is cross-cutting by nature —
+ * tone, length, how often a rule bears restating — so a profile will usually carry an overlay for
+ * `skill-conventions`, which every skill body opens by reading, and nothing for `status-model`.
+ *
+ * @param directory The package's `shared/`.
+ * @param profile The active profile, or null.
+ * @param stem The document being read.
+ * @returns {string}
+ */
+function overlay(directory: string, profile: string | null, stem: string): string {
+  if (profile === null) return '';
+
+  const file = join(directory, ADVICE, profile, `${stem}${SUFFIX}`);
+
+  // Containment for the handler's reason: `stem` reached the path from a caller. The profile came
+  // from the environment and was checked against the directory when the tool was built.
+  if (!withinPackage(directory, file) || !existsSync(file)) return '';
+
+  return `\n\n${ADVICE_HEADING}\n\n`
+    + `The guidance below applies to the \`${profile}\` profile and to no other. It is advice about `
+    + 'how this model works, never a rule about what the record must hold — those are in the body '
+    + 'above and in the server, and they do not vary.\n\n'
+    + readFileSync(file, 'utf8').trim();
+}
+
+/**
+ * The profile named by the environment, checked against the overlays that exist.
+ *
+ * Unknown names are refused rather than ignored, for `profileFrom`'s reason and this tool's own: a
+ * user who writes `DPM_PROFILE=opsu` and silently gets the base conventions has been told nothing,
+ * and the omission is invisible in exactly the way ADR 02-01 chose a tool over a file read to
+ * avoid. It is raised where the tool is built, so it fails at startup rather than on the first
+ * skill's first call.
+ *
+ * **The name is taken rather than the environment**, and `baseline.test.js` is why. A function
+ * given the whole environment and indexing it by a constant reads the environment in a way no sweep
+ * can attribute to a variable — the test names that hole in its own comment and counts attributable
+ * reads to close it. Defaulting the *value* keeps `DPM_PROFILE` greppable in `src/`, which is the
+ * property NFR2's sanctioned list is asserted over.
+ *
+ * @param directory The package's `shared/`.
+ * @param requested The profile name, defaulting to `DPM_PROFILE`.
+ * @returns {string|null}
+ */
+export function activeProfile(
+  directory: string,
+  requested: string | undefined = process.env.DPM_PROFILE,
+): string | null {
+  if (requested === undefined || requested === '') return null;
+
+  const available = profiles(directory);
+
+  if (!available.includes(requested)) {
+    throw new Error(
+      `dpm: no advice profile named '${requested}'. `
+      + (available.length > 0
+        ? `The profiles are: ${available.join(', ')}.`
+        : `No profile exists — ${join(ADVICE, '<name>')} under the package's shared/ is where one goes.`),
+    );
+  }
+
+  return requested;
+}
 
 /**
  * The stems `shared/` actually holds, read from the directory rather than listed here.
@@ -78,11 +200,16 @@ const stems = (directory: string): string[] => readdirSync(directory)
  *   the test chose.
  * @returns {object[]}
  */
-export function sharedDocumentTools({ root }: { root?: string } = {}): Tool[] {
+export function sharedDocumentTools(
+  { root, profile: requested }: { root?: string; profile?: string } = {},
+): Tool[] {
   const name = 'read_shared_document';
   // Resolved once, at build time, for ADR 01-07's reason: a root computed inside the handler is a
   // root recomputed on every call, and the check that makes it safe would run on every call too.
   const directory = join(root ?? packageRoot(import.meta.dirname), SHARED_DIRECTORY);
+  // Read once for the same reason, and raising here so an unknown profile stops the server rather
+  // than being discovered by a run that has already planned half an epic without its conventions.
+  const profile = activeProfile(directory, requested);
 
   return [
     defineTool({
@@ -98,7 +225,8 @@ export function sharedDocumentTools({ root }: { root?: string } = {}): Tool[] {
         'Return the content of one of dpm\'s shared documents by name — `skill-conventions` for '
         + 'the conventions every skill opens by reading, `status-model` for the status vocabulary. '
         + 'Every dpm skill body begins with this call. An unknown name is refused, naming the '
-        + 'documents that exist.',
+        + 'documents that exist. Where a model profile is active, its guidance is appended to the '
+        + 'document under a heading of its own and `profile` names it.',
       mutates: false,
       inputSchema: {
         type: 'object',
@@ -128,7 +256,15 @@ export function sharedDocumentTools({ root }: { root?: string } = {}): Tool[] {
         // **The path is not returned, and its absence is the point.** A caller handed the file's
         // location can read the file instead of calling this again, which is the mechanism this
         // tool exists to replace — and that read is the one v1 has no hook for and v2 rejects.
-        return { name: args.name, content: readFileSync(file, 'utf8') };
+        //
+        // `profile` is returned beside the content so a run can say which advice it was given, and
+        // so a transcript records it. Advice that shaped a run and left no trace in it is advice
+        // nobody can hold to account afterwards.
+        return {
+          name: args.name,
+          profile,
+          content: readFileSync(file, 'utf8') + overlay(directory, profile, args.name),
+        };
       },
     }),
   ];

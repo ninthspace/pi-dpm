@@ -74,6 +74,13 @@ function environmentReads() {
 const CLASSIFIED = {
   DPM_READ_ONLY: 'a launch mode, resolved once at bring-up and passed down',
   DPM_DATABASE: 'a path override, read at module load as a process-level setting',
+  // Read once where `read_shared_document` is built, checked against the overlays on disk, and
+  // thereafter a constant for the life of the process. It carries no state between calls and
+  // nothing writes it back — which is what makes it a launch-time choice like the other two rather
+  // than scratch. A profile that varied per session would be a different mechanism entirely: the
+  // advice would stop being a property of how the server was started and become something a run
+  // could change about itself mid-flight, which is the thing an overlay must never be.
+  DPM_PROFILE: 'a launch-time choice of advice overlay, resolved once when the tool is built',
 };
 
 // --- Criterion 1: nothing was per-session scratch keyed by an environment variable --------------

@@ -161,8 +161,19 @@ test('the packed tarball carries the plugin entry, the skills, shared and the ex
   // The five executables, and `shared/`, which is the directory the skills read at startup.
   assert.deepEqual(files.filter((path) => path.startsWith('bin/')).map((path) => path.slice(4)).sort(),
     EXECUTABLES, 'the executables in the tarball are not the five');
+  // **Read recursively, because `shared/` stopped being flat.** The advice overlays sit under
+  // `shared/advice/<profile>/`, and a non-recursive listing compares `advice` the directory against
+  // `advice/opus/skill-conventions.md` the file — two spellings of different things, which is a
+  // failure that says nothing. Recursing also makes the claim the stronger one: every overlay ships
+  // too, and a profile that reached the tree without reaching the tarball would be a run configured
+  // for advice it silently never receives.
   assert.deepEqual(files.filter((path) => path.startsWith('shared/')).map((path) => path.slice(7)).sort(),
-    readdirSync(join(ROOT, 'shared')).sort(), 'shared/ did not ship whole');
+    readdirSync(join(ROOT, 'shared'), { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name).slice(join(ROOT, 'shared').length + 1))
+      .map((path) => path.replaceAll('\\', '/'))
+      .sort(),
+    'shared/ did not ship whole');
 
   // And the hook, which the README's pre-commit-framework entry names by path inside the package.
   assert.ok(files.includes('hooks/pre-commit'), 'the tarball omits the hook the README tells readers to point at');

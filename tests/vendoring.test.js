@@ -108,7 +108,10 @@ test('the repository holds the v0.7.0 tree it was forked from [integration]', ()
     assert.ok(existsSync(join(ROOT, 'skills', skill, 'SKILL.md')), `skills/${skill} holds a SKILL.md`);
   }
 
-  assert.deepEqual(readdirSync(join(ROOT, 'shared')).sort(),
+  // The two documents v0.7.0 shipped, which is what this test is about. `advice/` is a directory
+  // this port added and holds no shared reference of its own — every overlay in it extends one of
+  // the two below rather than standing beside them.
+  assert.deepEqual(readdirSync(join(ROOT, 'shared')).filter((entry) => entry.endsWith('.md')).sort(),
     ['skill-conventions.md', 'status-model.md'],
     'and both shared references came across');
 });

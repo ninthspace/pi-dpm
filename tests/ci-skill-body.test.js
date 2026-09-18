@@ -72,7 +72,7 @@ test('a clean corpus passes, so a failure below is the breach and not the harnes
 
   assert.equal(result.status, 0,
     `a corpus with nothing wrong with it was refused:\n${result.stderr}`);
-  assert.match(result.stdout, /name no host mechanism and no SQL/);
+  assert.match(result.stdout, /name no host mechanism, no SQL and no model/);
 });
 
 test('a tree too small to be the corpus is refused rather than reported clean [integration]', (t) => {
@@ -139,6 +139,47 @@ test('a SQL statement planted in a body fails the check [integration]', (t) => {
     assert.match(result.stderr, /reaches past the tool boundary/,
       `${statement} failed for some reason other than being SQL`);
   }
+});
+
+// --- Model guidance belongs in an overlay, not in a body -----------------------------------------
+
+test('a model name planted in a body fails the check [integration]', (t) => {
+  const breaches = [
+    ['a tuning note', 'Opus answers run long unless brevity is asked for.', /the model name Opus/],
+    ['a capability note', 'Sonnet holds the whole epic in context.', /the model name Sonnet/],
+    ['a local model', 'Qwen drops characters from a ULID, so read ids back.', /the model name Qwen/],
+    ['a habit claim', 'The model tends to skip the plan phase.', /one model's habits/],
+  ];
+
+  for (const [what, planted, reported] of breaches) {
+    const result = check(corpus(t, planted));
+
+    assert.equal(result.status, 1, `${what} did not fail the check:\n${result.stdout}`);
+    assert.match(result.stderr, reported, `${what} failed the check without saying what it found`);
+    assert.match(result.stderr, /shared[/\\]advice/,
+      `${what} was reported without saying where the guidance belongs`);
+  }
+});
+
+test('the shared conventions are swept for model names too [integration]', (t) => {
+  // The file every body reads at startup is where one line reaches all twenty-three, which is
+  // exactly where cpm's own conventions took their Opus sentence.
+  const result = check(corpus(t, '', '# Conventions\n\nOpus 5 reaches for self-correction readily.\n'));
+
+  assert.equal(result.status, 1, 'a model name in the shared conventions passed the check');
+  assert.match(result.stderr, /shared[/\\]skill-conventions\.md/);
+});
+
+test('a run cited as evidence for a rule is not a model name [integration]', (t) => {
+  // **The control that keeps the rule a boundary rather than a word ban.** Three real bodies cite
+  // an MTPLX run as the evidence for an invariant, and every rule they cite it for holds whoever is
+  // writing. A check that flagged those would be asking for the provenance to be deleted, which is
+  // the opposite of what it is for.
+  const cited = 'An MTPLX dpm-do run closed a story over a pending task, so the server refuses it.';
+
+  const result = check(corpus(t, cited));
+
+  assert.equal(result.status, 0, `a run citation was refused as model guidance:\n${result.stderr}`);
 });
 
 // --- The wiring: the step exists, and runs the same command a contributor runs -------------------

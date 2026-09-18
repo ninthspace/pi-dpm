@@ -156,7 +156,7 @@ test('the skill-body check passes over the renamed corpus [integration]', () => 
   const result = spawnSync(process.execPath, [CHECK, ROOT], { encoding: 'utf8' });
 
   assert.equal(result.status, 0, `the body check refused the renamed corpus:\n${result.stderr}`);
-  assert.match(result.stdout, /name no host mechanism and no SQL/);
+  assert.match(result.stdout, /name no host mechanism, no SQL and no model/);
 
   // And the exemption is still being applied to the body that holds it, rather than the check
   // having gone quiet on the whole corpus.

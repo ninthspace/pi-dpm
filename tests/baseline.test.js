@@ -61,11 +61,14 @@ test('the comment stripper removes prose and leaves regular expressions alone [u
  * Every environment variable dpm is allowed to read, with the requirement that sanctions it.
  *
  * `DPM_DATABASE` is AD4's override. `DPM_READ_ONLY` is spec 48's AD1: the board observes projects
- * it does not own, and the mode that makes observing inert has to reach the server somehow. Both
+ * it does not own, and the mode that makes observing inert has to reach the server somehow.
+ * `DPM_PROFILE` names the advice overlay `read_shared_document` appends — the seam that keeps
+ * model-specific guidance out of the skill bodies, and the server is a spawned process, so the
+ * environment is the one channel a host-independent registration can reach it through. All three
  * are optional — NFR2's clause is that dpm needs *no* variable set, not that it reads none — and a
- * third name arriving without a requirement behind it is what this list exists to stop.
+ * fourth name arriving without a requirement behind it is what this list exists to stop.
  */
-const SANCTIONED = ['DPM_DATABASE', 'DPM_READ_ONLY'];
+const SANCTIONED = ['DPM_DATABASE', 'DPM_READ_ONLY', 'DPM_PROFILE'];
 
 test('process.env is read in src/ only for the sanctioned names [unit]', () => {
   const sources = sourcesUnder('src');
@@ -93,7 +96,7 @@ test('process.env is read in src/ only for the sanctioned names [unit]', () => {
   // appear in this list and contribute nothing to the count, which is a read of the environment
   // that the sweep cannot attribute to any name — the computed-key hole one step removed. Equal
   // numbers is what says every reader here is a reader the sweep could actually read.
-  assert.deepEqual(readers, ['src/db/location.ts', 'src/server/read-only.ts'],
+  assert.deepEqual(readers, ['src/db/location.ts', 'src/server/read-only.ts', 'src/tools/shared.ts'],
     'the environment is read somewhere other than the modules that exist to read it');
   assert.equal(examined, SANCTIONED.length,
     `the sweep counted ${examined} reads across ${readers.length} files`);

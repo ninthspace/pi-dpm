@@ -50,6 +50,48 @@ export const HOST_MECHANISM = [
 ];
 
 /**
+ * Model names a body may not carry, because guidance tied to one belongs in an advice overlay.
+ *
+ * **The rule this enforces is a boundary between two kinds of prose, not a ban on a word.** A rule
+ * about what the record must hold — a story does not close over a pending task — is true whoever is
+ * writing and lives in the body. Advice about how a model behaves — that its answers run long
+ * unless brevity is asked for — is true until the model changes, and then it is wrong, and prose
+ * edited into twenty-three bodies has no boundary anyone can find afterwards. `shared/advice/` is
+ * where the second kind goes; this is what keeps it there.
+ *
+ * The cost of not having this is on the record next door: cpm's `skill-conventions.md` carries
+ * *"Opus 5's default responses run longer than prior models'"* inline and unconditionally, and both
+ * cpm and plain dpm have been swept by hand on every model change. A sweep across twenty-three
+ * files with the two kinds interleaved is also where the rules that should not vary get edited by
+ * mistake.
+ *
+ * **Product names only, and that is deliberate.** A body citing an `MTPLX … run` as the evidence for
+ * an invariant is provenance and stays — three bodies do it today, and what each cites is a
+ * record-level rule that holds for any model. What cannot stay is a body instructing *because of*
+ * who is reading it, and a vendor's product name is the mechanical form of that. Phrases are matched
+ * where they are unambiguous; the judgement cases are what the convention in the overlay's own
+ * header is for, and no pattern will catch them.
+ */
+export const MODEL_SPECIFIC = [
+  { pattern: /\bopus\b/i, why: 'the model name Opus' },
+  { pattern: /\bsonnet\b/i, why: 'the model name Sonnet' },
+  { pattern: /\bhaiku\b/i, why: 'the model name Haiku' },
+  { pattern: /\bgpt-?\d/i, why: 'a GPT model name' },
+  { pattern: /\bqwen/i, why: 'the model name Qwen' },
+  { pattern: /\bllama\b/i, why: 'the model name Llama' },
+  { pattern: /\bgemini\b/i, why: 'the model name Gemini' },
+  { pattern: /\bmistral\b/i, why: 'the model name Mistral' },
+  { pattern: /\bthe model (?:tends|will often|struggles)\b/i, why: "a claim about one model's habits" },
+];
+
+// **`this model` was a pattern here and came straight back out.** `shared/status-model.md` is about
+// the *status* model and says "`dpm-status` references this model in prose" — a true sentence about
+// a data model, flagged as advice about an LLM. In a project whose domain vocabulary includes the
+// word, the phrase cannot carry the rule, and a check that has to be argued with on every run is one
+// that gets switched off. The product names above are unambiguous; the rest is the overlay's own
+// convention to hold, and no pattern will hold it.
+
+/**
  * The one breach on the record, and the whole of it.
  *
  * `ralph` drives its loop by writing a file a Claude Code stop hook reads. That hook was never
@@ -138,6 +180,12 @@ export function run(root: string): number {
     for (const found of sweep(text, SQL)) {
       problems.push(`${path}: reaches past the tool boundary — ${found}`);
     }
+
+    // `sharedFiles` reads `shared/*.md` and not the directories under it, so `shared/advice/` is
+    // outside this sweep by construction rather than by exemption — which is the point of it.
+    for (const found of sweep(text, MODEL_SPECIFIC)) {
+      problems.push(`${path}: names ${found} — model guidance belongs in shared/advice/<profile>/`);
+    }
   }
 
   if (problems.length > 0) {
@@ -149,7 +197,7 @@ export function run(root: string): number {
   }
 
   console.log(`dpm: ${checked.length} files — every skill body and every file they read at startup `
-    + '— name no host mechanism and no SQL');
+    + '— name no host mechanism, no SQL and no model');
   console.log(`     one recorded gap, printed rather than hidden: ${RECORDED_GAP.skill} names the `
     + 'Claude Code stop-hook file, which OpenCode has no equivalent for');
 

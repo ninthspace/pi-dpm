@@ -314,6 +314,28 @@ the working directory OpenCode hands a spawned MCP server is what decides which 
   refusal names the command; [When the guard refuses](#when-the-guard-refuses) explains
   the choice.
 
+## Model-specific guidance
+
+The skills say what the record must hold; they never say what a *particular* model tends to get
+wrong. Advice of that second kind — that a model's answers run long unless brevity is asked for,
+that a rule bears restating at a handoff — is true until the model changes, and prose edited into
+twenty-three skill bodies has no boundary anyone can find afterwards.
+
+So it goes in an overlay instead, and `DPM_PROFILE` selects one:
+
+```sh
+DPM_PROFILE=opus            # appends shared/advice/opus/ to the documents it names
+```
+
+Each profile is a directory under `shared/advice/`, holding a file named after the shared document
+it extends — `shared/advice/opus/skill-conventions.md` is appended to the conventions every skill
+opens by reading. The base document is always served whole; the overlay follows it under its own
+heading, and the active profile comes back with the content so a run records which advice it was
+given. A name with no directory behind it is refused at startup rather than ignored.
+
+Switching models is then one file to write and one directory to delete. `npm run skills` fails the
+build if a model name finds its way back into a skill body.
+
 ## About the host and the runtime
 
 DPM is an OpenCode plugin: it registers one MCP server and twenty-three skills, and there
