@@ -279,6 +279,14 @@ after, and revert whatever broke.
 **Status.** `dpm_update_task` with `status: 'complete'`. At a verification gate,
 `dpm_update_story` the same way.
 
+**A story closes over nothing it has not accounted for, and the server holds it to both halves.**
+Every task is `complete` or `withdrawn` first — a run marked a story complete with its third task
+still `pending` while the work sat finished on disk, and the only thing wrong was the row. And where
+a live binding under the story is still unverified, `status_note` says why in the same call: a run
+closed a story over two `target` rows nobody can verify from a development box, which was the right
+judgement recorded as an empty column. Verify what can be verified; write the sentence for what
+cannot.
+
 **Observation.** Every completed story produces **one observation, and one only**, and it is the
 only input `dpm-retro` has to work with. `dpm_list_observation` with this `story_id` first: where
 the story already carries one, this step is done, and a second category goes on the row that is
@@ -358,6 +366,13 @@ sentence a reader takes on trust is worse than no sentence. Every verification i
 this skill on its own work, so the summary reports what this run claimed. "Nine of nine rows marked
 verified by this run" is what happened; "nine of nine requirements verified" reads as something
 someone else confirmed.
+
+**Read that report's `claimable` before closing the epic.** It names every requirement whose live
+bindings are all verified and which carries no completeness claim — the claim `dpm_update_requirement`
+makes with `coverage_claimed`, and the one act no row implies. A run claimed thirteen requirements
+in one sweep and skipped the fourteenth, whose single binding was verified and whose story was
+complete; nothing reported it, because every row about that requirement was right. Claim each one
+this run finished, or say in the summary why a requirement it finished stands unclaimed.
 
 **And say which nine.** The denominator is the bindings still standing — what
 `dpm_list_coverage` returns, which is the live rows and not every row ever

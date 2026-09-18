@@ -39,6 +39,33 @@ const FIELDS = {
 };
 
 /**
+ * A won't-have says why it is out, or it is refused.
+ *
+ * **The band and the reason are one act, and a spec run wrote only half of it.** Every requirement
+ * in the tally-speed spec left `exclusion` NULL, including three won't-haves — while the same run
+ * wrote "Deferred: a `--year` filter … a machine-readable output option" into a scope-boundary
+ * section and `FR8/FR9 deferred by spec scope boundary` into its own session state. The reason was
+ * known, written twice in prose, and absent from the column that exists to hold it. Prose is not
+ * where `check_coverage` reads an exclusion from, so the requirements it should have passed over as
+ * settled it reported as warnings instead, run after run.
+ *
+ * **Scoped to `wont`, and deliberately not to `could`.** A could-have with no exclusion is a real
+ * state — undecided, still in scope, and reported as a warning until somebody settles it, which is
+ * what the warning is for. A won't-have is already settled by definition: the band *is* the
+ * decision, and the only thing left to record is which decision it was. So this refuses the one
+ * case where the column can be demanded without inventing an answer, and `standing` goes on reading
+ * `wont` as excluded whatever the column holds, for the databases written before this line.
+ */
+function refuseUnexplainedWont(moscow: unknown, exclusion: unknown, where: string): void {
+  if (moscow !== 'wont' || (exclusion ?? null) !== null) return;
+
+  throw new ToolError(`${where}: a won't-have says why it is out — exclusion must be `
+    + `${EXCLUSION.map((reason) => `'${reason}'`).join(' or ')}. The band records that it is out of `
+    + 'this release; the exclusion records the decision, and a scope-boundary section is not read '
+    + 'by any check');
+}
+
+/**
  * FR26's completeness claim, offered on update and not on create.
  *
  * A requirement is never born claimed — there is nothing bound to it yet — so putting this in
@@ -84,17 +111,21 @@ export function requirementTools({ db, newId, now }: Context): Tool[] {
         // supplying one without the other is refused rather than helped.
         required: ['spec_id', 'label', 'class', 'text', 'position'],
       },
-      handler: (args) => insert(db, 'requirement', {
-        id: newId(),
-        spec_id: args.spec_id,
-        label: args.label,
-        class: args.class,
-        moscow: args.moscow ?? null,
-        exclusion: args.exclusion ?? null,
-        parent_id: args.parent_id ?? null,
-        text: args.text,
-        position: args.position,
-      }, 'create_requirement'),
+      handler: (args) => {
+        refuseUnexplainedWont(args.moscow, args.exclusion, 'create_requirement');
+
+        return insert(db, 'requirement', {
+          id: newId(),
+          spec_id: args.spec_id,
+          label: args.label,
+          class: args.class,
+          moscow: args.moscow ?? null,
+          exclusion: args.exclusion ?? null,
+          parent_id: args.parent_id ?? null,
+          text: args.text,
+          position: args.position,
+        }, 'create_requirement');
+      },
     }),
 
     defineTool({
@@ -133,6 +164,20 @@ export function requirementTools({ db, newId, now }: Context): Tool[] {
         required: ['id'],
       },
       handler: ({ id, coverage_claimed: claimed, ...changes }) => {
+        // Asked of the row the edit would leave, not of the arguments. Either column can move on
+        // its own — a requirement demoted to `wont` naming no reason, and one already `wont` having
+        // its reason cleared, are the same end state reached from two directions, and a check over
+        // the arguments alone sees neither.
+        if ('moscow' in changes || 'exclusion' in changes) {
+          const current = readById(db, 'requirement', id, 'update_requirement');
+
+          refuseUnexplainedWont(
+            'moscow' in changes ? changes.moscow : current.moscow,
+            'exclusion' in changes ? changes.exclusion : current.exclusion,
+            'update_requirement',
+          );
+        }
+
         if (Object.keys(changes).length > 0) update(db, 'requirement', id, changes, 'update_requirement');
         else if (claimed === undefined) throw new ToolError('update_requirement: nothing to update');
         // A claim against a requirement that is not there is a boundary rejection like any other,

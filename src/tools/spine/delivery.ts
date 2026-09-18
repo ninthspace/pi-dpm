@@ -37,7 +37,20 @@ const STATUS = ['pending', 'complete', 'superseded', 'withdrawn'];
  */
 export function deliveryTools(
   { db, newId }: Context,
-  { table, parent, extra = {} }: { table: string; parent: string; extra?: Record<string, Rule> },
+  { table, parent, extra = {}, closing }: {
+    table: string;
+    parent: string;
+    extra?: Record<string, Rule>;
+    /**
+     * Asked before a row is moved to `complete`, and only then.
+     *
+     * A parameter rather than a branch on `table`, for the reason the whole factory is one: the
+     * two tables differ by what they carry, and a `if (table === 'story')` here would be a second
+     * place for them to drift apart. A task has no closing condition — it is the leaf — so it
+     * passes none, and nothing in this file knows which is which.
+     */
+    closing?: (id: string, changes: Record<string, unknown>, where: string) => void;
+  },
 ): Tool[] {
   const fields: Record<string, Rule> = {
     number: { type: 'integer', minimum: 1, description: `ordinal within its ${parent}` },
@@ -105,7 +118,11 @@ export function deliveryTools(
         properties: { id: { type: 'string', minLength: 1 }, ...fields },
         required: ['id'],
       },
-      handler: ({ id, ...changes }) => update(db, table, id, changes, `update_${table}`),
+      handler: ({ id, ...changes }) => {
+        if (changes.status === 'complete') closing?.(id, changes, `update_${table}`);
+
+        return update(db, table, id, changes, `update_${table}`);
+      },
     }),
   ];
 }

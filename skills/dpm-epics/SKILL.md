@@ -451,7 +451,23 @@ a check answered from memory of it has the shape of a check without being one. T
   other — not finished work because its positive twin is bound, and not because the spec stated it.
 - `untagged_criteria` — every live story criterion with no approach tag. Step 3 tags every
   criterion, so one without a tag is a tags gate approved and never written.
+- `uncriteriated` — every in-scope requirement with no acceptance criterion at all. Not this
+  skill's to fix — a criterion is the spec's — but this is where it is seen: a spec run wrote
+  criteria for its first three requirements, moved to the next section, and left eleven of
+  twenty-two with none, four of them live should-haves that were then built and claimed. Report
+  them so the spec can be amended before a breakdown is built on requirements nothing tests.
+- `duplicated_criteria` — one criterion's text declared by two stories. Within a story the server
+  refuses the second copy; across stories it may be right, because two stories can genuinely share
+  one criterion — but each gets its own bindable id, so a roll-up counts one obligation twice.
+  Where it is a copy, drop one and bind the survivor; where both stories really deliver it, one
+  criterion with a `coverage_story` row is the shape that says so.
+- `claimable` — every requirement whose live bindings are all verified and which carries no
+  completeness claim. Ordinary mid-run and not a gap; it is `dpm-do` that claims, at the end of the
+  epic that finished the work.
 - `gaps` and `warnings` — all of the above as sentences, and `ok`, true only when `gaps` is empty.
+  **The three lists above reach `warnings` and never `gaps`**: each names work that is owed rather
+  than a breakdown that is wrong, and a run passes through `claimable` every time it verifies a
+  binding before claiming it.
 - `must_have_criteria` — for each must-have in scope, its text, its spec criteria, and the story
   criteria covering it with the fragment each binding quotes.
 - `counts` — epics, stories, live story criteria, `must_not` criteria, warrants, tags, untagged criteria, tasks, live

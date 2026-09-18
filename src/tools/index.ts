@@ -230,6 +230,61 @@ export function spineTools(
     ...deliveryTools(context, {
       table: 'story',
       parent: 'epic_id',
+      // **What a story has to have accounted for before it closes.** Both halves come from the
+      // tally-speed chain, and both are states in which every row is individually correct.
+      //
+      // A story was marked `complete` with its third task still `pending` — and the work existed:
+      // the file the task describes is on disk with the checks it asks for. The task row was
+      // simply never flipped, and nothing asked. Whether the task was done is not knowable here;
+      // whether it was *accounted for* is, and that is what this refuses.
+      //
+      // The second half is narrower and is the more interesting failure. A story closed carrying
+      // two criteria whose bindings were deliberately left unverified — correctly, since both are
+      // `target` rows about the machine the tool will eventually run on, which nobody can verify
+      // from the development box. The judgement was right and the record said nothing: an empty
+      // `status_note`, and a reader left to work out from the coverage rows why a complete story
+      // has unverified work under it. So the note is demanded rather than the verification, which
+      // is the only one of the two a server can tell the difference between.
+      closing: (id, changes, where) => {
+        const open = db.prepare(`SELECT number, title FROM task
+                                  WHERE story_id = ? AND status = 'pending'
+                                  ORDER BY position, number`)
+          .all(id) as Array<{ number: number; title: string }>;
+
+        if (open.length > 0) {
+          throw new ToolError(`${where}: ${open.length} task${open.length === 1 ? '' : 's'} of this `
+            + `story ${open.length === 1 ? 'is' : 'are'} still pending — `
+            + `${open.map((task) => `${task.number} ${task.title}`).join(', ')}. Close each task, or `
+            + 'move it to withdrawn if it is not being done');
+        }
+
+        // The note the caller is setting in this same call counts, which is the shape a run
+        // actually writes: status and note go in one `update_story`. An existing note counts too,
+        // so a story noted earlier and closed later is not refused for saying it twice.
+        const noted = (changes.status_note ?? (db
+          .prepare('SELECT status_note FROM story WHERE id = ?').get(id) as { status_note: string | null } | undefined)
+          ?.status_note ?? '') as string;
+
+        if (noted.trim() !== '') return;
+
+        const unverified = db.prepare(`SELECT requirement.label, story_criterion.text
+                                         FROM coverage
+                                         JOIN story_criterion ON story_criterion.id = coverage.story_criterion_id
+                                         JOIN requirement ON requirement.id = coverage.requirement_id
+                                        WHERE story_criterion.story_id = ?
+                                          AND story_criterion.superseded_at IS NULL
+                                          AND coverage.retired_at IS NULL
+                                          AND coverage.verified_at IS NULL
+                                        ORDER BY requirement.label`)
+          .all(id) as Array<{ label: string; text: string }>;
+
+        if (unverified.length === 0) return;
+
+        throw new ToolError(`${where}: ${unverified.length} live binding`
+          + `${unverified.length === 1 ? '' : 's'} under this story ${unverified.length === 1 ? 'is' : 'are'} `
+          + `unverified — ${[...new Set(unverified.map((row) => row.label))].join(', ')}. Verify them, `
+          + 'or close the story with a status_note saying why they stand unverified');
+      },
       // FR4. CPM appends `[plan]` to the story's `##` heading and reads it back off there; here
       // `epics` sets a column and `do` asks the story. Declared 0/1 rather than a boolean so the
       // argument and `CHECK (plan IN (0, 1))` are the same set, which is what AD10's conformance

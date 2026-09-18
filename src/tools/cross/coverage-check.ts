@@ -31,6 +31,14 @@
  * count and leaves the standings alone: which requirements are gaps is a question about the spec,
  * and one epic's rows never answer it.
  *
+ * **Three warnings name work that is owed rather than a breakdown that is wrong**, and each comes
+ * from a state the tally-speed chain reached with every row about it correct. A requirement whose
+ * bindings are all verified and which carries no claim; a requirement nobody wrote an acceptance
+ * criterion for; one criterion's sentence declared by two stories. None is a gap — a run passes
+ * through the first of them every time, in the window between the last verification and the claim —
+ * so none touches `ok`, and each is a query rather than a judgement, which is this file's whole
+ * argument for asking it here instead of leaving it to a reader at the end of a long run.
+ *
  * **Deliberately unbounded**, for `check_integrity`'s reason: a truncated gap report is a false pass.
  */
 
@@ -94,7 +102,8 @@ export function coverageReport(db: DatabaseSync, specId: string, epicId: string 
   const criterionOf = new Map(criteria.items.map((criterion) => [criterion.id, criterion]));
   const criterionIds = [...criterionOf.keys()];
 
-  const requirements = all(`SELECT id, label, class, moscow, exclusion, text FROM requirement
+  const requirements = all(`SELECT id, label, class, moscow, exclusion, text, coverage_claimed_at
+                              FROM requirement
                              WHERE spec_id = ? ORDER BY position`, specId);
   const coverage = all(`SELECT coverage.id, coverage.requirement_id, coverage.spec_fragment,
                                coverage.story_criterion_id, coverage.verified_at
@@ -118,6 +127,7 @@ export function coverageReport(db: DatabaseSync, specId: string, epicId: string 
 
   const report = requirements.map((requirement) => {
     const rows = coverage.filter((row) => row.requirement_id === requirement.id);
+    const verified = rows.filter((row) => row.verified_at !== null).length;
 
     return {
       id: requirement.id,
@@ -126,6 +136,8 @@ export function coverageReport(db: DatabaseSync, specId: string, epicId: string 
       moscow: requirement.moscow,
       exclusion: excluded(requirement),
       coverage: rows.length,
+      verified,
+      claimed: requirement.coverage_claimed_at !== null,
       standing: standing(requirement, rows.length),
     };
   });
@@ -164,6 +176,62 @@ export function coverageReport(db: DatabaseSync, specId: string, epicId: string 
   const untagged = criteria.items
     .filter((criterion) => !tagged.has(criterion.id))
     .map((criterion) => ({ id: criterion.id, ...located(criterion.id), polarity: criterion.polarity, text: criterion.text }));
+
+  // **Every binding verified, and nothing claiming the set.** A do-run claimed thirteen
+  // requirements in one sweep and skipped the fourteenth: FR6, whose single binding was verified
+  // and whose story was complete. Nothing reported it, because every row *about* FR6 was right —
+  // the act that was missing was the claim over them, and a claim is the one thing no row implies
+  // (`claim.ts` says why it cannot be derived). What can be derived is when one is owed, and that
+  // is a query: live bindings, all verified, no `coverage_claimed_at`. Asked here rather than left
+  // to a reader comparing two lists by eye at the end of a long run, which is how it was missed.
+  const claimable = report
+    .filter((requirement) => requirement.standing !== 'excluded'
+      && requirement.coverage > 0
+      && requirement.verified === requirement.coverage
+      && !requirement.claimed)
+    .map(({ id, label, coverage: bound }) => ({ id, label, coverage: bound }));
+
+  // **A requirement nobody wrote an acceptance criterion for.** A spec run wrote criteria for FR1
+  // through FR3, moved on to the NFR block, and left eleven of twenty-two requirements with none —
+  // four of them live should-haves that were implemented and claimed anyway. No check saw it,
+  // because coverage answers a different question: a story criterion discharges a *fragment*, and
+  // never says what the requirement would have to do to count as satisfied. So a requirement with
+  // bindings and no criteria reads as covered from every angle this report had before this line.
+  //
+  // Excluded requirements are passed over, as they are everywhere else here: a won't-have with no
+  // criteria is a won't-have.
+  const uncriteriated = requirements
+    .filter((requirement) => !excluded(requirement)
+      && !specCriteria.some((criterion) => criterion.requirement_id === requirement.id))
+    .map(({ id, label, moscow, class: klass }) => ({ id, label, moscow, class: klass }));
+
+  // **One criterion's sentence written twice, under two stories.** `coverage`'s natural key is
+  // `(requirement_id, spec_fragment, story_criterion_id)`, so two stories declaring the same
+  // sentence and binding it to the same fragment produce two legal rows — two obligations to a
+  // roll-up, two things to verify, and one obligation in fact. An epics run wrote FR3's
+  // standard-output criterion into story 1.3 and again into story 2.2, each with its own binding.
+  //
+  // **Reported and not refused, which is the half `create_story_criterion` cannot take.** Its
+  // guard refuses a second copy *within* one story outright, because one story has no reason to
+  // hold the same check twice. Across stories the same text is a judgement about the breakdown —
+  // two stories genuinely sharing one criterion is a state the schema has a row for, in
+  // `coverage_story` — and which of the pair is the copy is not a fact about the text. So the two
+  // halves of one rule are enforced in the two places each can be settled, and neither covers the
+  // other. Whitespace is folded so a re-wrapped copy is still a copy, which the guard's exact
+  // match on `text` would miss; case is not folded, since these are prose.
+  const byText = new Map<string, Row[]>();
+
+  for (const criterion of criteria.items) {
+    const key = criterion.text.replace(/\s+/g, ' ').trim();
+    byText.set(key, [...byText.get(key) ?? [], criterion]);
+  }
+
+  const duplicated = [...byText.values()]
+    .filter((group) => new Set(group.map((criterion) => criterion.story_id)).size > 1)
+    .map((group) => ({
+      text: group[0].text,
+      criteria: group.map((criterion) => ({ id: criterion.id, ...located(criterion.id) })),
+    }));
 
   // One epic's bindings, counted. The requirement standings above stay the spec's: an epic that
   // covers four of sixteen requirements has not turned the other twelve into gaps, and a report
@@ -213,11 +281,29 @@ export function coverageReport(db: DatabaseSync, specId: string, epicId: string 
     spec_id: specId,
     ok: gaps.length === 0,
     gaps,
-    warnings: report.filter((requirement) => requirement.standing === 'warning')
-      .map((requirement) => `${requirement.label} (${requirement.moscow ?? 'no band'}) has no live coverage`),
+    // **None of the three lists below reaches `gaps`, and that is a decision rather than an
+    // oversight.** `ok` is read as "may this run close", and each names work that is owed rather
+    // than a breakdown that is wrong: a requirement is claimable for the whole window between its
+    // last binding being verified and the claim being made, which is an ordinary state in the
+    // middle of a do-run and not a reason to stop one.
+    warnings: [
+      ...report.filter((requirement) => requirement.standing === 'warning')
+        .map((requirement) => `${requirement.label} (${requirement.moscow ?? 'no band'}) has no live coverage`),
+      ...claimable.map((requirement) =>
+        `${requirement.label} has ${requirement.coverage} live binding${requirement.coverage === 1 ? '' : 's'}, `
+        + 'all verified, and no completeness claim'),
+      ...uncriteriated.map((requirement) =>
+        `${requirement.label} (${requirement.moscow ?? 'no band'}) has no acceptance criterion`),
+      ...duplicated.map((group) =>
+        `'${group.text}' is declared by ${group.criteria.length} stories: `
+        + `${group.criteria.map((criterion) => `${criterion.epic} story ${criterion.story}`).join(', ')}`),
+    ],
     requirements: report,
     unaccounted_criteria: unaccounted,
     untagged_criteria: untagged,
+    claimable,
+    uncriteriated,
+    duplicated_criteria: duplicated,
     epic: epicScope,
     must_have_criteria: mustHaves,
     counts: {
@@ -258,7 +344,10 @@ export function coverageCheckTools({ db }: Context): Tool[] {
         + 'could with none; excluded: deferred, out of scope or won\'t), every live story criterion '
         + 'neither bound nor warranted, every one with no approach tag, each must-have\'s spec criteria beside the story criteria '
         + 'covering it for the caller to match, and the counts of epics, stories, criteria, tags, '
-        + 'tasks, coverage and edges. With `epic_id`, adds that epic\'s own binding count and how '
+        + 'tasks, coverage and edges. Warns where work is owed rather than wrong: a requirement '
+        + 'whose live bindings are all verified and which carries no completeness claim, one with '
+        + 'no acceptance criterion, and one criterion\'s text declared by two stories. '
+        + 'With `epic_id`, adds that epic\'s own binding count and how '
         + 'many are verified, per requirement — the roll-up number a skill would otherwise add up by '
         + 'hand. Deliberately unbounded.',
       reads: ['coverage', 'requirement', 'acceptance_criterion', 'story_criterion', 'story', 'document',

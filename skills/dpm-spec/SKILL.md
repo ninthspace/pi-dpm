@@ -161,9 +161,13 @@ Each agreed requirement is one `dpm_create_requirement` call:
 - `text` is the requirement, `position` its display order, `spec_id` the document.
 - A requirement refining another passes `parent_id`. `FR1a` under `FR1` is a row pointing at a row.
 
-A won't-have that is a real requirement being deferred rather than an item ruled out also takes
-`exclusion: 'deferred'` or `'out_of_scope'`, so it is recognised as excluded rather than counted as
-an outstanding gap.
+**Every won't-have carries `exclusion: 'deferred'` or `'out_of_scope'`, and is refused without
+one.** The band says the requirement is out of this release; the exclusion says which decision put
+it there — deferred to a later one, or ruled out of the product. A spec run wrote "Deferred: a
+`--year` filter, a machine-readable output option" into its scope-boundary section and left the
+column NULL on every row, so the reason was on record twice in prose and in no place a check reads.
+Nothing else is demanded: a could-have with no exclusion is undecided rather than wrong, and stands
+as a warning until somebody settles it.
 
 ### Section 3: Non-functional requirements
 

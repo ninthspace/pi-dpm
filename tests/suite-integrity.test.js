@@ -157,6 +157,7 @@ const ADDED = [
   'commands-route.test.js', //         the per-skill commands that displace the host's body-pasting ones
   'coverage-check-tool.test.js', //    an MTPLX epics run — the gap check as one read, and a cross-epic coverage_story row
   'dependency-isolation.test.js', //   01-02 story 4 — the empty production tree, read off the lockfile
+  'do-run-closings.test.js', //        three MTPLX dpm-do runs — a story closed over a pending task, and over an unverified binding with no note
   'epics-run-corrections.test.js', //  an MTPLX epics run — the backwards edge deleted, a stray list filter, a criterion twice
   'executables-typescript.test.js', // story 3 — the five binaries under plain node
   'guard-hook-path.test.js', //        01-04 story 1 — the hook fires, and no refusal names a host mechanism

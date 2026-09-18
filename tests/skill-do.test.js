@@ -405,7 +405,14 @@ test('an epic with a story not complete is left pending, whether or not anything
     call.update_task({ id: task.id, status: 'complete' });
   }
 
-  call.update_story({ id: fixture.first.id, status: 'complete' });
+  // The note is what a story owes when it closes with live bindings still unverified — another
+  // criterion's rule, and satisfied here rather than worked around, since this test is about which
+  // epics the file leaves pending.
+  call.update_story({
+    id: fixture.first.id,
+    status: 'complete',
+    status_note: 'closed for the epic-completion fixture; its bindings are verified elsewhere',
+  });
 
   assert.equal(finished(fixture.lifecycle.id), false,
     'a story still pending is a story the epic is waiting on');

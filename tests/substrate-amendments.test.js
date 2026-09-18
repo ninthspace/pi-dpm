@@ -69,6 +69,11 @@ test('document, story and task each take all four statuses and refuse a fifth', 
   const { db, call } = surface(t);
   const { spec, story, task } = ladder(call);
 
+  // A story refuses to close over a pending task, so the ladder's one task is closed before the
+  // story is cycled — that rule is another criterion's, and this one is about the enum. The task's
+  // own cycle below starts from `complete` and ends where every row here ends, at `pending`.
+  call.update_task({ id: task.id, status: 'complete' });
+
   const rows = [
     { table: 'document', id: spec.id, update: (status) => call.update_spec({ id: spec.id, status }) },
     { table: 'story', id: story.id, update: (status) => call.update_story({ id: story.id, status }) },
